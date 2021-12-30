@@ -1,0 +1,6 @@
+fastapi==0.70.0
+async-timeout<4.0,>=3.0
+chia-blockchain==1.2.11
+uvicorn[standard]==0.15.0
+aioredis==2.0.0
+logzero
