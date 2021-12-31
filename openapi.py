@@ -85,7 +85,7 @@ class UTXO(BaseModel):
 
 @router.get("/utxos", response_model=List[UTXO])
 async def get_utxos(address: str, request: Request):
-    # todo: use blocke indexer and supoort unconfirmed param
+    # todo: use block indexer and support unconfirmed param
     pzh = decode_puzzle_hash(address)
     redis: aioredis.Redis = request.app.state.redis
     cache_key = f'utxo:{address}'
@@ -154,7 +154,7 @@ async def get_user_balance(puzzle_hash: bytes, request: Request):
 
 @router.get('/balance')
 async def query_balance(address, request: Request):
-    # todo: use blocke indexer and supoort unconfirmed param
+    # todo: use block indexer and support unconfirmed param
     puzzle_hash = decode_puzzle_hash(address)
     redis = request.app.state.redis
     cache_key = f'balance:{address}'
