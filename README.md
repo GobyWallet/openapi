@@ -8,6 +8,8 @@ You can install Goby [here](https://chrome.google.com/webstore/detail/goby/jnkel
 
 ## Run your own node
 
+Install redis, e.g. sudo apt-get install redis
+
 ```
 git clone https://github.com/GobyWallet/openapi.git
 # change config.py
