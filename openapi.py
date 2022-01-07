@@ -1,17 +1,19 @@
 import os
 import json
 from typing import List, Optional, Dict
-import aioredis
 import logzero
 from logzero import logger
 from fastapi import FastAPI, APIRouter, Request, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
+from aiocache import caches, cached
 from pydantic import BaseModel
 from chia.rpc.full_node_rpc_client import FullNodeRpcClient
 from chia.util.bech32m import encode_puzzle_hash, decode_puzzle_hash as inner_decode_puzzle_hash
 from chia.types.spend_bundle import SpendBundle
 from chia.types.blockchain_format.program import Program
 import config as settings
+
+caches.set_config(settings.CACHE_CONFIG)
 
 
 app = FastAPI()
@@ -32,26 +34,15 @@ async def get_full_node_client() -> FullNodeRpcClient:
     return full_node_client
 
 
-async def redis_pool(db: int = 0):
-    redis = aioredis.from_url(
-        f"redis://:{settings.REDIS_PWD}@{settings.REDIS_HOST}/{db}?encoding=utf-8"
-    )
-    await redis.ping()
-    return redis
-
-
 @app.on_event("startup")
 async def startup():
     app.state.client = await get_full_node_client()
     # check full node connect
     await app.state.client.get_blockchain_state()
-    app.state.redis = await redis_pool()
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    await app.state.redis.close()
-
     app.state.client.close()
     await app.state.client.await_closed()
 
@@ -84,15 +75,10 @@ class UTXO(BaseModel):
 
 
 @router.get("/utxos", response_model=List[UTXO])
+@cached(ttl=10, key_builder=lambda *args, **kwargs: f"utxos:{kwargs['address']}", alias='default')
 async def get_utxos(address: str, request: Request):
-    # todo: use block indexer and support unconfirmed param
+    # todo: use blocke indexer and supoort unconfirmed param
     pzh = decode_puzzle_hash(address)
-    redis: aioredis.Redis = request.app.state.redis
-    cache_key = f'utxo:{address}'
-    cache_data = await redis.get(cache_key)
-    if cache_data is not None:
-        return json.loads(cache_data)
-    
     full_node_client = request.app.state.client
     coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=pzh, include_spent_coins=True)
     data = []
@@ -101,8 +87,6 @@ async def get_utxos(address: str, request: Request):
         if row.spent:
             continue
         data.append(coin_to_json(row.coin))
-    
-    await redis.set(cache_key, json.dumps(data, ensure_ascii=False), ex=10)
     return data
 
 
@@ -138,34 +122,21 @@ async def full_node_rpc(request: Request, item: ChiaRpcParams):
 
 
 async def get_user_balance(puzzle_hash: bytes, request: Request):
-    redis = request.app.state.redis
-
-    data = await redis.get(f'balance:{puzzle_hash.hex()}')
-    if data is not None:
-        return int(data)
-
     full_node_client = request.app.state.client
     coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=puzzle_hash, include_spent_coins=True)
     amount = sum([c.coin.amount for c in coin_records if c.spent == 0])
-
-    await redis.set(f'balance:{puzzle_hash.hex()}', amount, ex=10)
     return amount
 
 
 @router.get('/balance')
+@cached(ttl=10, key_builder=lambda *args, **kwargs: f"balance:{kwargs['address']}", alias='default')
 async def query_balance(address, request: Request):
-    # todo: use block indexer and support unconfirmed param
+    # todo: use blocke indexer and supoort unconfirmed param
     puzzle_hash = decode_puzzle_hash(address)
-    redis = request.app.state.redis
-    cache_key = f'balance:{address}'
-    cache_data = await redis.get(cache_key)
-    if cache_data is not None:
-        return json.loads(cache_data)
     amount = await get_user_balance(puzzle_hash, request)
     data = {
         'amount': amount
     }
-    await redis.set(cache_key, json.dumps(data, ensure_ascii=False), ex=10)
     return data
 
 
@@ -206,5 +177,6 @@ DEFAULT_TOKEN_LIST = [
 @router.get('/tokens')
 async def list_tokens():
     return DEFAULT_TOKEN_LIST
+
 
 app.include_router(router, prefix="/v1")
