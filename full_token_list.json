@@ -1,0 +1,128 @@
+[
+  {
+    "chain": "xch",
+    "id": "8ebf855de6eb146db5602f0456d2f0cbe750d57f821b6f91a8592ee9f1d4cf31",
+    "name": "Marmot",
+    "symbol": "MRMT",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/mrmt/MRMT_32.png",
+    "is_core": true
+  },
+  {
+    "chain": "xch",
+    "id": "78ad32a8c9ea70f27d73e9306fc467bab2a6b15b30289791e37ab6e8612212b1",
+    "name": "Spacebucks",
+    "symbol": "SBX",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/sbx/SBX_32.png",
+    "is_core": true
+  },
+  {
+    "chain": "xch",
+    "id": "c61752799372c48eb61f9ba19299a12ac97a1dabd3b61c44877a064909da03e1",
+    "name": "Sticky Buns",
+    "symbol": "BUNS",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/buns/BUNS_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "a2cadb541cb01c67c3bcddc73ecf33c8ffa37b0d013688904b2747cede020477",
+    "name": "CryptoShibe Gold",
+    "symbol": "CSH",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/csh/CSH_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "f7245be4cc6c44e146bfe18c5fb34d70b8e048b1da2916a88e48deb7f6c05efe",
+    "name": "CryptoShibe Platinum",
+    "symbol": "CSHP",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/cshp/CSHP_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "916c85d0d41ea38d90cc5d1486092d2de39ecc7e93ac7e7055edd9fbb398f2f6",
+    "name": "Shitload of Dimes",
+    "symbol": "SLD",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/sld/SLD_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "ae203d741af79a884835933f59c6434bb9bb09c647c7506019067af1929afa80",
+    "name": "Catcoin",
+    "symbol": "CAT",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/cat/CAT_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "73f33751aa1bdb798adf5fec51cb9006105972576e73bbd002f2b1b243553aef",
+    "name": "Chives",
+    "symbol": "ROSE",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/rose/ROSE_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "aa53978aaac154e32380aaf6322cd316696442248f1d15051007bc48b011694b",
+    "name": "Catkchi",
+    "symbol": "CTK",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/ctk/CTK_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "fdaa539154f63a0cf6afd17887d7ded4e067fe1967ad2304ab163a1ea70984c5",
+    "name": "MojoDice",
+    "symbol": "MJV",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/mjv/MJV_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "6d95dae356e32a71db5ddcb42224754a02524c615c5fc35f568c2af04774e589",
+    "name": "DuckSauce",
+    "symbol": "DSC",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/dsc/DSC_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "509deafe3cd8bbfbb9ccce1d930e3d7b57b40c964fa33379b18d628175eb7a8f",
+    "name": "Chia Holiday Token",
+    "symbol": "CH21",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/ch21/CH21_32.png",
+    "is_core": true
+  },
+  {
+    "chain": "xch",
+    "id": "b1d772b7e6aed44dc24364a5418468239fb4dcc9141d9eadb4fb5de93ae2ef3c",
+    "name": "Rwanda Books",
+    "symbol": "RBKS",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/rbks/RBKS_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "f5f0770713ebdd6e132410b3406f85c7cd49d690080a3277e00c24d7a91a5af0",
+    "name": "Space Marmots Premium",
+    "symbol": "SM1",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/sm1/SM1_32.png",
+    "is_core": false
+  }
+]
