@@ -124,5 +124,14 @@
     "decimals": 3,
     "logo_url": "https://static.goby.app/image/token/sm1/SM1_32.png",
     "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "aa53978aaac154e32380aaf6322cd316696442248f1d15051007bc48b011694b",
+    "name": "Catkchi",
+    "symbol": "CTK",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/ctk/CTK_32.png",
+    "is_core": false
   }
 ]
