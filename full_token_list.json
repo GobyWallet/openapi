@@ -10,12 +10,21 @@
   },
   {
     "chain": "xch",
+    "id": "6d95dae356e32a71db5ddcb42224754a02524c615c5fc35f568c2af04774e589",
+    "name": "Stably USD",
+    "symbol": "USDS",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/usds/USDS_32.png",
+    "is_core": true
+  },
+  {
+    "chain": "xch",
     "id": "78ad32a8c9ea70f27d73e9306fc467bab2a6b15b30289791e37ab6e8612212b1",
     "name": "Spacebucks",
     "symbol": "SBX",
     "decimals": 3,
     "logo_url": "https://static.goby.app/image/token/sbx/SBX_32.png",
-    "is_core": true
+    "is_core": false
   },
   {
     "chain": "xch",
@@ -105,7 +114,7 @@
     "symbol": "CH21",
     "decimals": 3,
     "logo_url": "https://static.goby.app/image/token/ch21/CH21_32.png",
-    "is_core": true
+    "is_core": false
   },
   {
     "chain": "xch",
@@ -132,6 +141,15 @@
     "symbol": "CTK",
     "decimals": 3,
     "logo_url": "https://static.goby.app/image/token/ctk/CTK_32.png",
+    "is_core": false
+  },
+  {
+    "chain": "xch",
+    "id": "1df783dbe6b9cc777d672ed6bdbf3c7535198d744c0fbd26fd07fcb9400aa039",
+    "name": "Marvelous Marmot Ticket",
+    "symbol": "MMT",
+    "decimals": 3,
+    "logo_url": "https://static.goby.app/image/token/MMT/MMT_32.png",
     "is_core": false
   }
 ]
