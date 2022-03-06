@@ -1,5 +1,5 @@
-from chia.util.default_root import DEFAULT_ROOT_PATH
-from chia.util.config import load_config
+
+SECONDS_PER_BLOCK = (24 * 3600) / 4608
 
 CACHE_CONFIG = {
     'default': {
@@ -15,5 +15,34 @@ CACHE_CONFIG = {
 }
 
 
-CHIA_ROOT_PATH = DEFAULT_ROOT_PATH
-CHIA_CONFIG = load_config(CHIA_ROOT_PATH, "config.yaml")
+SUPPORTED_CHAINS = [
+    {
+        "id": 1,
+        "network_name": "mainnet",
+        "network_prefix": "xch",
+        "native_token": {
+            "decimals": 12,
+            "name": "XCH",
+            "symbol": "XCH",
+            "logo": "https://static.goby.app/image/token/xch/XCH_32.png"
+        },
+        "agg_sig_me_additional_data": "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb",
+        "proxy_rpc_url": "http://127.0.0.1:8555",
+        "chia_root_path": "",
+    },
+    {
+        "id": 2,
+        "network_name": "testnet10",
+        "network_prefix": "txch",
+        "native_token": {
+            "decimals": 12,
+            "name": "XCH",
+            "symbol": "XCH",
+            "logo": "https://static.goby.app/image/token/xch/XCH_32.png"
+        },
+        "agg_sig_me_additional_data": "ae83525ba8d1dd3f09b277de18ca3e43fc0af20d20c4b3e92ef2a48bd291ccb2",
+        "proxy_rpc_url": "http://127.0.0.1:8556",
+        "chia_root_path": "",
+    },
+    # 1 - 10 reserved
+]

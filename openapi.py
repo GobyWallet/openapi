@@ -1,5 +1,6 @@
 import os
 import json
+from dataclasses import dataclass
 from typing import List, Optional, Dict
 import logzero
 from logzero import logger
@@ -7,10 +8,9 @@ from fastapi import FastAPI, APIRouter, Request, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from aiocache import caches, cached
 from pydantic import BaseModel
-from chia.rpc.full_node_rpc_client import FullNodeRpcClient
-from chia.util.bech32m import encode_puzzle_hash, decode_puzzle_hash as inner_decode_puzzle_hash
-from chia.types.spend_bundle import SpendBundle
-from chia.types.blockchain_format.program import Program
+from utils import int_to_hex
+from utils.bech32m import decode_puzzle_hash
+from rpc_client import FullNodeRpcClient
 import config as settings
 
 caches.set_config(settings.CACHE_CONFIG)
@@ -28,41 +28,60 @@ if not os.path.exists(log_dir):
 logzero.logfile(os.path.join(log_dir, "api.log"))
 
 
-async def get_full_node_client() -> FullNodeRpcClient:
-    config = settings.CHIA_CONFIG
-    full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.CHIA_ROOT_PATH, settings.CHIA_CONFIG)
-    return full_node_client
+@dataclass
+class Chain:
+    id: str
+    network_name: str
+    network_prefix: str
+    client: FullNodeRpcClient
+
+
+async def init_chains(app, chains_config):
+    chains: Dict[str, Chain] = {}
+    for row in chains_config:
+        id_hex = int_to_hex(row['id'])
+
+        if row.get('proxy_rpc_url'):
+            client = await FullNodeRpcClient.create_by_proxy_url(row['proxy_rpc_url'])
+        elif row.get('chia_root_path'):
+            client = await FullNodeRpcClient.create_by_chia_root_path(row['chia_root_path'])
+        else:
+            raise ValueError(f"chian {row['id']} has no full node rpc config")
+        
+        # check client
+        network_info =  await client.get_network_info()
+
+        chains[id_hex] = Chain(id_hex, row['network_name'], row['network_prefix'], client)
+
+    app.state.chains = chains
 
 
 @app.on_event("startup")
 async def startup():
-    app.state.client = await get_full_node_client()
-    # check full node connect
-    await app.state.client.get_blockchain_state()
+    await init_chains(app, settings.SUPPORTED_CHAINS)
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    app.state.client.close()
-    await app.state.client.await_closed()
+    for chain in app.state.chains.values():
+        chain.client.close()
+        await chain.client.await_closed()
 
 
-def to_hex(data: bytes):
-    return data.hex()
-
-
-def decode_puzzle_hash(address):
+def decode_address(address, prefix):
     try:
-        return inner_decode_puzzle_hash(address)
+        _prefix, puzzle_hash = decode_puzzle_hash(address)
+        if _prefix != prefix:
+            raise ValueError("wrong prefix")
+        return puzzle_hash
     except ValueError:
         raise HTTPException(400, "Invalid Address")
 
-def coin_to_json(coin):
-    return {
-        'parent_coin_info':  to_hex(coin.parent_coin_info),
-        'puzzle_hash': to_hex(coin.puzzle_hash),
-        'amount': str(coin.amount)
-    }
+
+async def get_chain(request: Request, chain="0x01") -> Chain:
+    if chain not in request.app.state.chains:
+        raise HTTPException(400, "Ivalid Chain")
+    return request.app.state.chains[chain]
 
 
 router = APIRouter()
@@ -74,36 +93,46 @@ class UTXO(BaseModel):
     amount: str
 
 
+def coin_javascript_compat(coin):
+    return {
+        'parent_coin_info':  coin['parent_coin_info'],
+        'puzzle_hash': coin['puzzle_hash'],
+        'amount': str(coin['amount'])
+    }
+
+
 @router.get("/utxos", response_model=List[UTXO])
 @cached(ttl=10, key_builder=lambda *args, **kwargs: f"utxos:{kwargs['address']}", alias='default')
-async def get_utxos(address: str, request: Request):
+async def get_utxos(address: str, chain: Chain = Depends(get_chain)):
     # todo: use blocke indexer and supoort unconfirmed param
-    pzh = decode_puzzle_hash(address)
-    full_node_client = request.app.state.client
-    coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=pzh, include_spent_coins=True)
+    pzh = decode_address(address, chain.network_prefix)
+
+    # the old version db has inefficient index, should set include_spent_coins=True
+    coin_records = await chain.client.get_coin_records_by_puzzle_hash(puzzle_hash=pzh, include_spent_coins=False)
     data = []
 
     for row in coin_records:
-        if row.spent:
+        if row['spent']:
             continue
-        data.append(coin_to_json(row.coin))
+        data.append(coin_javascript_compat(row['coin']))
     return data
 
 
+class SendTxBody(BaseModel):
+    spend_bundle: dict
+
+
 @router.post("/sendtx")
-async def create_transaction(request: Request, item = Body({})):
-    spb = SpendBundle.from_json_dict(item['spend_bundle'])
-    full_node_client = request.app.state.client
-    
+async def create_transaction(item: SendTxBody, chain: Chain = Depends(get_chain)):
+    spb = item.spend_bundle
     try:
-        resp = await full_node_client.push_tx(spb)
+        resp = await chain.client.push_tx(spb)
     except ValueError as e:
         logger.warning("sendtx: %s, error: %r", spb, e)
         raise HTTPException(400, str(e))
- 
     return {
         'status': resp['status'],
-        'id': spb.name().hex()
+        'id': 'deprecated', # will be removed after goby updated
     }
 
 
@@ -113,70 +142,25 @@ class ChiaRpcParams(BaseModel):
 
 
 @router.post('/chia_rpc')
-async def full_node_rpc(request: Request, item: ChiaRpcParams):
+async def full_node_rpc(item: ChiaRpcParams, chain: Chain = Depends(get_chain)):
+    """
+    ref: https://docs.chia.net/docs/12rpcs/full_node_api
+    """
     # todo: limit method and add cache
-    full_node_client = request.app.state.client
-    async with full_node_client.session.post(full_node_client.url + item.method, json=item.params, ssl_context=full_node_client.ssl_context) as response:
-        res_json = await response.json()
-        return res_json
-
-
-async def get_user_balance(puzzle_hash: bytes, request: Request):
-    full_node_client = request.app.state.client
-    coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=puzzle_hash, include_spent_coins=True)
-    amount = sum([c.coin.amount for c in coin_records if c.spent == 0])
-    return amount
+    return await chain.client.raw_fetch(item.method, item.params)
 
 
 @router.get('/balance')
 @cached(ttl=10, key_builder=lambda *args, **kwargs: f"balance:{kwargs['address']}", alias='default')
-async def query_balance(address, request: Request):
+async def query_balance(address: str, chain: Chain = Depends(get_chain)):
     # todo: use blocke indexer and supoort unconfirmed param
-    puzzle_hash = decode_puzzle_hash(address)
-    amount = await get_user_balance(puzzle_hash, request)
+    puzzle_hash = decode_address(address, chain.network_prefix)
+    coin_records = await chain.client.get_coin_records_by_puzzle_hash(puzzle_hash=puzzle_hash, include_spent_coins=False)
+    amount = sum([c['coin']['amount'] for c in coin_records if not c['spent']])
     data = {
         'amount': amount
     }
     return data
-
-
-DEFAULT_TOKEN_LIST = [
-    {
-        'chain': 'xch',
-        'id': 'xch',
-        'name': 'XCH',
-        'symbol': 'XCH',
-        'decimals': 12,
-        'logo_url': 'https://static.goby.app/image/token/xch/XCH_32.png',
-        'is_verified': True,
-        'is_core': True,
-    },
-    {
-        'chain': 'xch',
-        'id': '8ebf855de6eb146db5602f0456d2f0cbe750d57f821b6f91a8592ee9f1d4cf31',
-        'name': 'Marmot',
-        'symbol': 'MRMT',
-        'decimals': 3,
-        'logo_url': 'https://static.goby.app/image/token/mrmt/MRMT_32.png',
-        'is_verified': True,
-        'is_core': True,
-    },
-    {
-        'chain': 'xch',
-        'id': '78ad32a8c9ea70f27d73e9306fc467bab2a6b15b30289791e37ab6e8612212b1',
-        'name': 'Spacebucks',
-        'symbol': 'SBX',
-        'decimals': 3,
-        'logo_url': 'https://static.goby.app/image/token/sbx/SBX_32.png',
-        'is_verified': True,
-        'is_core': True,
-    },
-]
-
-
-@router.get('/tokens')
-async def list_tokens():
-    return DEFAULT_TOKEN_LIST
 
 
 app.include_router(router, prefix="/v1")
