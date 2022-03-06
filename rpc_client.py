@@ -1,9 +1,10 @@
 import asyncio
 from pathlib import Path
 from urllib.parse import urljoin
+import ssl
 from ssl import SSLContext
 from typing import Dict, List, Optional, Any
-
+import yaml
 import aiohttp
 
 bytes32 = bytes
@@ -33,13 +34,14 @@ class FullNodeRpcClient:
     @classmethod
     async def create_by_chia_root_path(cls, chia_root_path):
         self = cls()
-        path = Path(chia_root_path) / "config.yaml"
-        config = yaml.safe_load(path.open("r", encoding="utf-8"))
-        self.url = f"https://{config['self_hostname']}:{config['full_node']['rpc_node']}"
-        ca_cert_path = path / config["private_ssl_ca"]["crt"]
-        ca_key_path = path / config["private_ssl_ca"]["key"]
-        private_cert_path = root_path / net_config["daemon_ssl"]["private_crt"]
-        private_key_path = root_path / net_config["daemon_ssl"]["private_key"]
+        root_path = Path(chia_root_path)
+        config_path = Path(chia_root_path) / "config" / "config.yaml"
+        config = yaml.safe_load(config_path.open("r", encoding="utf-8"))
+        self.url = f"https://{config['self_hostname']}:{config['full_node']['rpc_port']}"
+        ca_cert_path = root_path / config["private_ssl_ca"]["crt"]
+        ca_key_path = root_path / config["private_ssl_ca"]["key"]
+        private_cert_path = root_path / config["daemon_ssl"]["private_crt"]
+        private_key_path = root_path / config["daemon_ssl"]["private_key"]
         self.session = aiohttp.ClientSession()
         self.ssl_context = ssl_context_for_client(ca_cert_path, ca_key_path, private_cert_path, private_key_path)
         self.closing_task = None
