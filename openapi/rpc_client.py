@@ -114,3 +114,25 @@ class FullNodeRpcClient:
 
     async def push_tx(self, spend_bundle: dict):
         return await self.fetch("push_tx", {"spend_bundle": spend_bundle})
+
+    async def get_coin_records_by_hint(
+        self,
+        hint: bytes32,
+        include_spent_coins: bool = True,
+        start_height: Optional[int] = None,
+        end_height: Optional[int] = None,
+    ):
+        request = {
+            'hint': hint.hex(),
+            'include_spent_coins': include_spent_coins,
+        }
+        if start_height:
+            request['start_height'] = start_height
+        if end_height:
+            request['start_height'] = end_height
+        response = await self.fetch("get_coin_records_by_hint", request)
+        return response["coin_records"]
+    
+    async def get_puzzle_and_solution(self, coin_id: bytes32, height: int):
+        response = await self.fetch("get_puzzle_and_solution", {"coin_id": coin_id.hex(), "height": height})
+        return response['coin_solution']

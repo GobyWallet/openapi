@@ -2,30 +2,26 @@ import os
 import json
 from dataclasses import dataclass
 from typing import List, Optional, Dict
-import logzero
+import asyncio
 from logzero import logger
 from fastapi import FastAPI, APIRouter, Request, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from aiocache import caches, cached
 from pydantic import BaseModel
-from utils import int_to_hex
-from utils.bech32m import decode_puzzle_hash
-from rpc_client import FullNodeRpcClient
-import config as settings
+from .utils import int_to_hex, hexstr_to_bytes
+from .utils.bech32m import decode_puzzle_hash
+from .nft import get_nft_info
+from .rpc_client import FullNodeRpcClient
+from .types import Coin, Program
+from . import config as settings
 
 caches.set_config(settings.CACHE_CONFIG)
 
 
 app = FastAPI()
 
-cwd = os.path.dirname(__file__)
 
-log_dir = os.path.join(cwd, "logs")
-
-if not os.path.exists(log_dir):
-    os.mkdir(log_dir)
-
-logzero.logfile(os.path.join(log_dir, "api.log"))
+RPC_METHOD_WHITE_LIST = set(settings.RPC_METHOD_WHITE_LIST)
 
 
 @dataclass
@@ -132,7 +128,6 @@ async def create_transaction(item: SendTxBody, chain: Chain = Depends(get_chain)
         raise HTTPException(400, str(e))
     return {
         'status': resp['status'],
-        'id': 'deprecated', # will be removed after goby updated
     }
 
 
@@ -147,13 +142,16 @@ async def full_node_rpc(item: ChiaRpcParams, chain: Chain = Depends(get_chain)):
     ref: https://docs.chia.net/docs/12rpcs/full_node_api
     """
     # todo: limit method and add cache
+    if item.method not in RPC_METHOD_WHITE_LIST:
+        raise HTTPException(400, f"unspport chia rpc method: {item.method}")
+
     return await chain.client.raw_fetch(item.method, item.params)
 
 
 @router.get('/balance')
 @cached(ttl=10, key_builder=lambda *args, **kwargs: f"balance:{kwargs['address']}", alias='default')
 async def query_balance(address: str, chain: Chain = Depends(get_chain)):
-    # todo: use blocke indexer and supoort unconfirmed param
+    # todo: use block indexer
     puzzle_hash = decode_address(address, chain.network_prefix)
     coin_records = await chain.client.get_coin_records_by_puzzle_hash(puzzle_hash=puzzle_hash, include_spent_coins=False)
     amount = sum([c['coin']['amount'] for c in coin_records if not c['spent']])
@@ -161,6 +159,48 @@ async def query_balance(address: str, chain: Chain = Depends(get_chain)):
         'amount': amount
     }
     return data
+
+
+@router.get('/nfts')
+@cached(ttl=20, key_builder=lambda *args, **kwargs: f"nfts:{kwargs['address']}", alias='default')
+async def list_nfts(address: str, chain: Chain = Depends(get_chain)):
+    # todo: use nft indexer
+    puzzle_hash = decode_address(address, chain.network_prefix)
+    start_height = settings.NFT_CHAIN_START_HEIGHT[chain.network_name]
+    coin_records = await chain.client.get_coin_records_by_hint(
+        puzzle_hash, include_spent_coins=False, start_height=start_height)
+    
+    pz_and_solutions = await asyncio.gather(*[
+        chain.client.get_puzzle_and_solution(hexstr_to_bytes(cr['coin']['parent_coin_info']), cr['confirmed_block_index'])
+        for cr in coin_records
+    ])
+
+    data = []
+    for coin_record, cs in zip(coin_records, pz_and_solutions):
+        nft_coin = Coin.from_json_dict(coin_record['coin'])
+        puzzle = Program.fromhex(cs['puzzle_reveal'])
+        solution = Program.fromhex(cs['solution'])
+
+        try:
+            nft_info = get_nft_info(nft_coin, puzzle, solution)
+        except Exception as e:
+            continue
+
+        if nft_info.owner != puzzle_hash.hex():
+            continue
+        nft_info_dict = nft_info.to_dict()
+
+        data.append(nft_info_dict)
+    
+    return data
+
+
+
+# @router.get('/dids')
+# @cached(ttl=10, key_builder=lambda *args, **kwargs: f"dids:{kwargs['address']}", alias='default')
+# async def list_dids(address: str, chain: Chain = Depends(get_chain)):
+#     # todo: use indexer
+#     pass
 
 
 app.include_router(router, prefix="/v1")

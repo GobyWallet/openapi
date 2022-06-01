@@ -46,3 +46,17 @@ SUPPORTED_CHAINS = [
     },
     # 1 - 10 reserved
 ]
+
+
+RPC_METHOD_WHITE_LIST = [
+    'get_coin_record_by_name',
+    'get_puzzle_and_solution',
+    'get_coin_records_by_puzzle_hash',
+    'get_coin_records_by_puzzle_hashes',
+    'get_coin_records_by_names',
+]
+
+NFT_CHAIN_START_HEIGHT = {
+    "mainnet": 2013332,
+    "testnet10": 1010929,
+}

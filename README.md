@@ -13,7 +13,7 @@ git clone https://github.com/GobyWallet/openapi.git
 # change config.py
 
 pip install -r requirements.txt
-uvicorn openapi:app
+uvicorn openapi.api:app
 ```
 
 ## Thanks
