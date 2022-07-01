@@ -187,6 +187,9 @@ class AssetTypeEnum(str, Enum):
 async def list_assets(address: str, chain: Chain = Depends(get_chain),
     asset_type: Optional[AssetTypeEnum]=None, asset_id: Optional[str]=None,
     start_height=0, limit=10):
+    """
+    - the api only support did coins that use inner puzzle hash for hint, so some did coins may not return
+    """
 
     puzzle_hash = decode_address(address, chain.network_prefix)
     await sf.do(address, lambda: sync_user_assets(chain.id, puzzle_hash, chain.client))

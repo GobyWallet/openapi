@@ -99,7 +99,7 @@ class UncurriedNFT:
         """
         mod, curried_args = puzzle.uncurry()
         if mod != SINGLETON_TOP_LAYER_MOD:
-            raise ValueError(f"Cannot uncurry NFT puzzle, failed on singleton top layer")
+            raise ValueError(f"Cannot uncurry NFT puzzle, failed on singleton top layer {mod.get_tree_hash().hex()}")
         try:
             (singleton_struct, nft_state_layer) = curried_args.as_iter()
             singleton_mod_hash = singleton_struct.first()

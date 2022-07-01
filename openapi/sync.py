@@ -62,7 +62,7 @@ async def handle_coin(address, coin_record, parent_coin_spend, db):
         curried_params = {
             'metadata': to_hex(bytes(uncurried_nft.metadata) if uncurried_nft.metadata else None),
             'transfer_program': to_hex(bytes(uncurried_nft.transfer_program) if uncurried_nft.transfer_program else None),
-            'did_id': to_hex(new_did_id),
+            'did_id': to_hex(new_did_id) if new_did_id else None,
         }
         asset = Asset(
             coin_id=coin.name(),
@@ -72,6 +72,7 @@ async def handle_coin(address, coin_record, parent_coin_spend, db):
             spent_height=0,
             coin=coin.to_json_dict(),
             p2_puzzle_hash=new_p2_puzhash,
+            nft_did_id=new_did_id,
             lineage_proof=lineage_proof.to_json_dict(),
             curried_params=curried_params
         )
@@ -106,7 +107,8 @@ async def sync_user_assets(chain_id, address: bytes, client: FullNodeRpcClient):
 
     coin_records = await client.get_coin_records_by_hint(
         address, include_spent_coins=False, start_height=start_height, end_height=end_height)
-
+    
+    logger.debug('hint records: %d', len(coin_records))
     if coin_records:
         pz_and_solutions = await asyncio.gather(*[
             client.get_puzzle_and_solution(hexstr_to_bytes(cr['coin']['parent_coin_info']), cr['confirmed_block_index'])
