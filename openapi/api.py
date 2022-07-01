@@ -1,22 +1,27 @@
 import os
 import json
 from dataclasses import dataclass
+from enum import Enum
 from typing import List, Optional, Dict
 import asyncio
-from logzero import logger
+import logging
 from fastapi import FastAPI, APIRouter, Request, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from aiocache import caches, cached
+from aiocache import caches, cached, Cache
 from pydantic import BaseModel
-from .utils import int_to_hex, hexstr_to_bytes
-from .utils.bech32m import decode_puzzle_hash
-from .nft import get_nft_info
+from .utils import int_to_hex, hexstr_to_bytes, to_hex
+from .utils.bech32m import decode_puzzle_hash, encode_puzzle_hash
+from .utils.singleflight import SingleFlight
 from .rpc_client import FullNodeRpcClient
 from .types import Coin, Program
+from .sync import sync_user_assets
+from .db import get_db, get_assets, register_db, connect_db, disconnect_db
 from . import config as settings
 
-caches.set_config(settings.CACHE_CONFIG)
 
+logger = logging.getLogger(__name__)
+
+caches.set_config(settings.CACHE_CONFIG)
 
 app = FastAPI()
 
@@ -30,11 +35,14 @@ class Chain:
     network_name: str
     network_prefix: str
     client: FullNodeRpcClient
+    # db: 
 
 
 async def init_chains(app, chains_config):
     chains: Dict[str, Chain] = {}
     for row in chains_config:
+        if row.get('enable') == False:
+            continue
         id_hex = int_to_hex(row['id'])
 
         if row.get('proxy_rpc_url'):
@@ -46,8 +54,10 @@ async def init_chains(app, chains_config):
         
         # check client
         network_info =  await client.get_network_info()
-
-        chains[id_hex] = Chain(id_hex, row['network_name'], row['network_prefix'], client)
+        chain = Chain(id_hex, row['network_name'], row['network_prefix'], client)
+        chains[id_hex] = chain
+        register_db(chain.id, row['database_uri'])
+        await connect_db(chain.id)
 
     app.state.chains = chains
 
@@ -62,6 +72,7 @@ async def shutdown():
     for chain in app.state.chains.values():
         chain.client.close()
         await chain.client.await_closed()
+        await disconnect_db(chain.id)
 
 
 def decode_address(address, prefix):
@@ -78,6 +89,10 @@ async def get_chain(request: Request, chain="0x01") -> Chain:
     if chain not in request.app.state.chains:
         raise HTTPException(400, "Ivalid Chain")
     return request.app.state.chains[chain]
+
+
+async def get_cache(request: Request) -> Cache:
+    return caches.get('default')
 
 
 router = APIRouter()
@@ -100,7 +115,7 @@ def coin_javascript_compat(coin):
 @router.get("/utxos", response_model=List[UTXO])
 @cached(ttl=10, key_builder=lambda *args, **kwargs: f"utxos:{kwargs['address']}", alias='default')
 async def get_utxos(address: str, chain: Chain = Depends(get_chain)):
-    # todo: use blocke indexer and supoort unconfirmed param
+    # todo: use block indexer
     pzh = decode_address(address, chain.network_prefix)
 
     # the old version db has inefficient index, should set include_spent_coins=True
@@ -161,46 +176,38 @@ async def query_balance(address: str, chain: Chain = Depends(get_chain)):
     return data
 
 
-@router.get('/nfts')
-@cached(ttl=20, key_builder=lambda *args, **kwargs: f"nfts:{kwargs['address']}", alias='default')
-async def list_nfts(address: str, chain: Chain = Depends(get_chain)):
-    # todo: use nft indexer
+sf = SingleFlight()
+
+class AssetTypeEnum(str, Enum):
+    nft = "nft"
+    did = "did"
+
+
+@router.get('/assets')
+async def list_assets(address: str, chain: Chain = Depends(get_chain),
+    asset_type: Optional[AssetTypeEnum]=None, asset_id: Optional[str]=None,
+    start_height=0, limit=10):
+
     puzzle_hash = decode_address(address, chain.network_prefix)
-    start_height = settings.NFT_CHAIN_START_HEIGHT[chain.network_name]
-    coin_records = await chain.client.get_coin_records_by_hint(
-        puzzle_hash, include_spent_coins=False, start_height=start_height)
-    
-    pz_and_solutions = await asyncio.gather(*[
-        chain.client.get_puzzle_and_solution(hexstr_to_bytes(cr['coin']['parent_coin_info']), cr['confirmed_block_index'])
-        for cr in coin_records
-    ])
+    await sf.do(address, lambda: sync_user_assets(chain.id, puzzle_hash, chain.client))
+    db = get_db(chain.id)
+    assets = await get_assets(
+        db, asset_type=asset_type, asset_id=hexstr_to_bytes(asset_id) if asset_id else None,
+        p2_puzzle_hash=puzzle_hash, start_height=start_height, limit=limit
+        )
 
     data = []
-    for coin_record, cs in zip(coin_records, pz_and_solutions):
-        nft_coin = Coin.from_json_dict(coin_record['coin'])
-        puzzle = Program.fromhex(cs['puzzle_reveal'])
-        solution = Program.fromhex(cs['solution'])
-
-        try:
-            nft_info = get_nft_info(nft_coin, puzzle, solution)
-        except Exception as e:
-            continue
-
-        if nft_info.owner != puzzle_hash.hex():
-            continue
-        nft_info_dict = nft_info.to_dict()
-
-        data.append(nft_info_dict)
-    
+    for asset in assets:
+        data.append({
+            'asset_type': asset.asset_type,
+            'asset_id': to_hex(asset.asset_id),
+            'coin': asset.coin,
+            'coin_id': to_hex(asset.coin_id),
+            'confirmed_height': asset.confirmed_height,
+            'lineage_proof': asset.lineage_proof,
+            'curried_params': asset.curried_params
+        })
     return data
-
-
-
-# @router.get('/dids')
-# @cached(ttl=10, key_builder=lambda *args, **kwargs: f"dids:{kwargs['address']}", alias='default')
-# async def list_dids(address: str, chain: Chain = Depends(get_chain)):
-#     # todo: use indexer
-#     pass
 
 
 app.include_router(router, prefix="/v1")

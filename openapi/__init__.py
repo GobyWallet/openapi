@@ -9,4 +9,4 @@ log_dir = os.path.join(cwd, "../", "logs")
 if not os.path.exists(log_dir):
     os.mkdir(log_dir)
 
-logzero.logfile(os.path.join(log_dir, "api.log"))
+logger = logzero.setup_logger(__name__, logfile=os.path.join(log_dir, "api.log"))

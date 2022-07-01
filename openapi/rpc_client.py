@@ -6,6 +6,7 @@ from ssl import SSLContext
 from typing import Dict, List, Optional, Any
 import yaml
 import aiohttp
+from .utils.singleflight import SingleFlight
 
 bytes32 = bytes
 
@@ -31,6 +32,9 @@ class FullNodeRpcClient:
     closing_task: Optional[asyncio.Task]
     ssl_context: Optional[SSLContext]
 
+    def __init__(self):
+        self.sf = SingleFlight()
+        
     @classmethod
     async def create_by_chia_root_path(cls, chia_root_path):
         self = cls()
@@ -79,6 +83,13 @@ class FullNodeRpcClient:
     async def get_network_info(self):
         return await self.fetch("get_network_info", {})
     
+    async def get_blockchain_state(self):
+        return await self.fetch("get_blockchain_state", {})
+
+    async def get_block_number(self):
+        resp = await self.sf.do('block_number', lambda: self.get_blockchain_state()) 
+        return resp['blockchain_state']['peak']['height']
+
     async def get_coin_records_by_puzzle_hash(
         self,
         puzzle_hash: bytes32,
@@ -129,10 +140,28 @@ class FullNodeRpcClient:
         if start_height:
             request['start_height'] = start_height
         if end_height:
-            request['start_height'] = end_height
+            request['end_height'] = end_height
         response = await self.fetch("get_coin_records_by_hint", request)
         return response["coin_records"]
     
+    async def get_coin_records_by_names(
+        self,
+        names: List[bytes32],
+        include_spent_coins: bool = True,
+        start_height: Optional[int] = None,
+        end_height: Optional[int] = None,
+    ) -> List:
+        names_hex = [name.hex() for name in names]
+        d = {"names": names_hex, "include_spent_coins": include_spent_coins}
+        if start_height is not None:
+            d["start_height"] = start_height
+        if end_height is not None:
+            d["end_height"] = end_height
+
+        response = await self.fetch("get_coin_records_by_names", d)
+        return response["coin_records"]
+
+
     async def get_puzzle_and_solution(self, coin_id: bytes32, height: int):
         response = await self.fetch("get_puzzle_and_solution", {"coin_id": coin_id.hex(), "height": height})
         return response['coin_solution']

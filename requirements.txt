@@ -8,3 +8,5 @@ logzero==1.7.0
 aiocache==0.11.1
 clvm==0.9.7
 clvm_tools==0.4.4
+SQLAlchemy==1.4.38
+aiosqlite

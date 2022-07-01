@@ -9,7 +9,8 @@ def int_to_hex(num: int):
 
 
 def to_hex(data: bytes):
-    return data.hex()
+    if data:
+        return f"0x{data.hex()}"
 
 
 def hexstr_to_bytes(input_str: str) -> bytes:
