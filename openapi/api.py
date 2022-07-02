@@ -9,7 +9,7 @@ from fastapi import FastAPI, APIRouter, Request, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from aiocache import caches, cached, Cache
 from pydantic import BaseModel
-from .utils import int_to_hex, hexstr_to_bytes, to_hex
+from .utils import int_to_hex, hexstr_to_bytes, to_hex, sanitize_obj_hex
 from .utils.bech32m import decode_puzzle_hash, encode_puzzle_hash
 from .utils.singleflight import SingleFlight
 from .rpc_client import FullNodeRpcClient
@@ -64,7 +64,9 @@ async def init_chains(app, chains_config):
 
 @app.on_event("startup")
 async def startup():
+    logger.info("begin init")
     await init_chains(app, settings.SUPPORTED_CHAINS)
+    logger.info("finish init")
 
 
 @app.on_event("shutdown")
@@ -137,6 +139,7 @@ class SendTxBody(BaseModel):
 async def create_transaction(item: SendTxBody, chain: Chain = Depends(get_chain)):
     spb = item.spend_bundle
     try:
+        spb = sanitize_obj_hex(spb)
         resp = await chain.client.push_tx(spb)
     except ValueError as e:
         logger.warning("sendtx: %s, error: %r", spb, e)

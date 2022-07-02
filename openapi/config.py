@@ -14,6 +14,7 @@ CACHE_CONFIG = {
     # }
 }
 
+LOG_LEVEL = "DEBUG"
 
 SUPPORTED_CHAINS = [
     {

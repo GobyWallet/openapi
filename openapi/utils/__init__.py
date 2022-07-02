@@ -13,6 +13,12 @@ def to_hex(data: bytes):
         return f"0x{data.hex()}"
 
 
+def sanitize_hex(s: str):
+    if s.startswith("0x"):
+        return s
+    return "0x" + s
+
+
 def hexstr_to_bytes(input_str: str) -> bytes:
     if input_str.startswith("0x") or input_str.startswith("0X"):
         return bytes.fromhex(input_str[2:])
@@ -34,5 +40,14 @@ def sha256(data) -> bytes:
 
 
 def coin_name(parent_coin_info: str, puzzle_hash: str, amount: int) -> bytes:
-    return sha256(hexstr_to_bytes(parent_coin_info) + hexstr_to_bytes(puzzle_hash) + hexstr_to_bytes(amount))
+    return sha256(hexstr_to_bytes(parent_coin_info) + hexstr_to_bytes(puzzle_hash) + int_to_bytes(amount))
 
+
+def sanitize_obj_hex(obj):
+    if isinstance(obj, str):
+        return sanitize_hex(obj)
+    elif isinstance(obj, dict):
+        return {k: sanitize_obj_hex(v) for k, v in obj.items()}
+    elif isinstance(obj, (tuple, list)):
+        return [sanitize_obj_hex(r) for r in obj]
+    return obj
