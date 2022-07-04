@@ -197,6 +197,7 @@ async def list_assets(address: str, chain: Chain = Depends(get_chain),
     puzzle_hash = decode_address(address, chain.network_prefix)
     await sf.do(address, lambda: sync_user_assets(chain.id, puzzle_hash, chain.client))
     db = get_db(chain.id)
+    # todo: use nftd/did indexer, now use db for cache
     assets = await get_assets(
         db, asset_type=asset_type, asset_id=hexstr_to_bytes(asset_id) if asset_id else None,
         p2_puzzle_hash=puzzle_hash, start_height=start_height, limit=limit
