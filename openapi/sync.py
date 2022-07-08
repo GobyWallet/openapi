@@ -1,11 +1,13 @@
 import logging
 import asyncio
+import json
+import aiohttp
 from aiocache import caches
-from .utils import hexstr_to_bytes, coin_name, to_hex
+from .utils import hexstr_to_bytes, coin_name, to_hex, sha256
 from .types import Coin
 from .db import (
-    Asset, get_db, get_sync_height_from_db, save_asset, get_unspent_asset_coin_ids,
-    update_asset_coin_spent_height,
+    Asset, NftMetadata, get_db, get_sync_height_from_db, save_asset, get_unspent_asset_coin_ids,
+    update_asset_coin_spent_height, get_nft_metadata_by_hash, save_metadata
 )
 
 from .did import get_did_info_from_coin_spend
@@ -14,7 +16,8 @@ from .rpc_client import FullNodeRpcClient
 
 logger = logging.getLogger(__name__)
 
-DELAY_BLOCK = 10
+DELAY_BLOCK = 5
+
 
 async def get_sync_height(chain_id, address: bytes):
     cache = caches.get('default')
@@ -27,6 +30,29 @@ async def set_sync_height(chain_id, address: bytes, height: int):
     cache = caches.get('default')
     key = f"sync:{chain_id}:{address.hex()}"
     await cache.set(key, height, ttl=3600*24*3)
+
+
+async def fetch_nft_metadata(db, url: str, hash: bytes):
+    row = await get_nft_metadata_by_hash(db, hash)
+    if row:
+        return
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, timeout=60) as response:
+            response.raise_for_status()
+            binary = await response.read()
+            binary_sha256 = sha256(binary)
+            if binary_sha256 != hash:
+                raise ValueError("nft metadta hash mismatch")
+            data = json.loads(binary)
+            await save_metadata(db, NftMetadata(
+                hash=binary_sha256,
+                format=data.get('format'),
+                name=data.get('name'),
+                collection_id=data.get('collection', {}).get('id'),
+                collection_name=data.get('collection', {}).get('name'),
+                full_data=data
+            ))
+            logger.debug('fetch metadata: %s success', hash.hex())
 
 
 async def handle_coin(address, coin_record, parent_coin_spend, db):
@@ -60,9 +86,11 @@ async def handle_coin(address, coin_record, parent_coin_spend, db):
     if nft_info is not None:
         uncurried_nft, new_did_id, new_p2_puzhash, lineage_proof = nft_info
         curried_params = {
-            'metadata': to_hex(bytes(uncurried_nft.metadata) if uncurried_nft.metadata else None),
+            'metadata': to_hex(bytes(uncurried_nft.metadata)),
             'transfer_program': to_hex(bytes(uncurried_nft.transfer_program) if uncurried_nft.transfer_program else None),
-            'did_id': to_hex(new_did_id) if new_did_id else None,
+            'metadata_updater_hash': to_hex(uncurried_nft.metadata_updater_hash.as_atom()),
+            'supports_did': uncurried_nft.supports_did,
+            'owner_did': to_hex(new_did_id) if new_did_id else None,
         }
         asset = Asset(
             coin_id=coin.name(),
@@ -78,7 +106,6 @@ async def handle_coin(address, coin_record, parent_coin_spend, db):
         )
         await save_asset(db, asset)
         logger.info('new asset, address: %s, type: %s, id: %s', address.hex(), asset.asset_type, asset.asset_id.hex())
-        return
 
 
 async def sync_user_assets(chain_id, address: bytes, client: FullNodeRpcClient):

@@ -76,10 +76,15 @@ def load_clvm(clvm_filename, package_or_requirement="openapi.clsp", search_paths
         )
 
 
+STANDARD_PUZZLE_MOD = load_clvm("p2_delegated_puzzle_or_hidden_puzzle.clvm")
+CAT_MOD = load_clvm("cat.clvm")
+OFFER_MOD = load_clvm("settlement_payments.clvm")
 SINGLETON_TOP_LAYER_MOD = load_clvm("singleton_top_layer_v1_1.clvm")
 SINGLETON_TOP_LAYER_MOD_HASH = SINGLETON_TOP_LAYER_MOD.get_tree_hash()
 SINGLETON_LAUNCHER_MOD = load_clvm("singleton_launcher.clvm")
 SINGLETON_LAUNCHER_MOD_HASH = SINGLETON_LAUNCHER_MOD.get_tree_hash()
 NFT_STATE_LAYER_MOD = load_clvm("nft_state_layer.clvm")
+NFT_METADATA_UPDATER = load_clvm("nft_metadata_updater_default.clvm")
 NFT_OWNERSHIP_LAYER = load_clvm("nft_ownership_layer.clvm")
+NFT_TRANSFER_PROGRAM_DEFAULT = load_clvm("nft_ownership_transfer_program_one_way_claim_with_royalties.clvm")
 DID_INNERPUZ_MOD = load_clvm("did_innerpuz.clvm")

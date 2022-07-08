@@ -15,7 +15,7 @@ from .utils.singleflight import SingleFlight
 from .rpc_client import FullNodeRpcClient
 from .types import Coin, Program
 from .sync import sync_user_assets
-from .db import get_db, get_assets, register_db, connect_db, disconnect_db
+from .db import get_db, get_assets, register_db, connect_db, disconnect_db, get_metadata_by_hashes
 from . import config as settings
 
 
@@ -182,13 +182,13 @@ async def query_balance(address: str, chain: Chain = Depends(get_chain)):
 sf = SingleFlight()
 
 class AssetTypeEnum(str, Enum):
-    nft = "nft"
-    did = "did"
+    NFT = "nft"
+    DID = "did"
 
 
 @router.get('/assets')
 async def list_assets(address: str, chain: Chain = Depends(get_chain),
-    asset_type: Optional[AssetTypeEnum]=None, asset_id: Optional[str]=None,
+    asset_type: AssetTypeEnum=AssetTypeEnum.NFT, asset_id: Optional[str]=None,
     start_height=0, limit=10):
     """
     - the api only support did coins that use inner puzzle hash for hint, so some did coins may not return
@@ -201,19 +201,21 @@ async def list_assets(address: str, chain: Chain = Depends(get_chain),
     assets = await get_assets(
         db, asset_type=asset_type, asset_id=hexstr_to_bytes(asset_id) if asset_id else None,
         p2_puzzle_hash=puzzle_hash, start_height=start_height, limit=limit
-        )
+    )
 
     data = []
     for asset in assets:
-        data.append({
+        item = {
             'asset_type': asset.asset_type,
             'asset_id': to_hex(asset.asset_id),
             'coin': asset.coin,
             'coin_id': to_hex(asset.coin_id),
             'confirmed_height': asset.confirmed_height,
             'lineage_proof': asset.lineage_proof,
-            'curried_params': asset.curried_params
-        })
+            'curried_params': asset.curried_params,
+        }
+        data.append(item)
+
     return data
 
 

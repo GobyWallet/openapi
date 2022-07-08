@@ -96,5 +96,3 @@ def get_did_info_from_coin_spend(coin: Coin, parent_cs: dict, address: bytes):
         'metadata': metadata,
         'lineage_proof': LineageProof(parent_coin.parent_coin_info, singleton_inner_puzzle.get_tree_hash(), parent_coin.amount)
     }
-
-

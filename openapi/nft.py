@@ -199,29 +199,6 @@ class UncurriedNFT:
             return state_layer_inner_solution
 
 
-@dataclass(frozen=True)
-class NFTInfo:
-    launcher_id: str
-    nft_coin_id: str
-    owner: str
-    did_owner: str
-    royalty: int
-    data_uris: List[str]
-    data_hash: str
-    metadata_uris: List[str]
-    metadata_hash: str
-    license_uris: List[str]
-    license_hash: str
-    version: str
-    edition_count: int
-    edition_number: int
-
-    def to_dict(self):
-        return dataclasses.asdict(self)
-
-
-
-
 def metadata_to_program(metadata: Dict[bytes, Any]) -> Program:
     """
     Convert the metadata dict to a Chialisp program
@@ -263,7 +240,6 @@ def prepend_value(key: bytes, value: Program, metadata: Dict[bytes, Any]) -> Non
             metadata[key].insert(0, value.as_python())
 
 
-
 def update_metadata(metadata: Program, update_condition: Program) -> Program:
     """
     Apply conditions of metadata updater to the previous metadata
@@ -286,7 +262,6 @@ def get_metadata_and_phs(unft: UncurriedNFT, solution: Program) -> Tuple[Program
             # invalid condition
             continue
         condition_code = condition.first().as_int()
-        logger.debug("Checking condition code: %r", condition_code)
         if condition_code == -24:
             # metadata update
             metadata = update_metadata(metadata, condition)
@@ -297,7 +272,6 @@ def get_metadata_and_phs(unft: UncurriedNFT, solution: Program) -> Tuple[Program
                 # ignore duplicated create coin conditions
                 continue
             puzhash_for_derivation = condition.rest().first().as_atom()
-            logger.debug("Got back puzhash from solution: %s", puzhash_for_derivation)
     assert puzhash_for_derivation
     return metadata, puzhash_for_derivation
 
@@ -343,3 +317,31 @@ def get_nft_info_from_coin_spend(nft_coin: Coin, parent_cs: dict, address: bytes
     parent_coin = Coin.from_json_dict(parent_cs['coin'])
     lineage_proof = LineageProof(parent_coin.parent_coin_info, uncurried_nft.nft_state_layer.get_tree_hash(), parent_coin.amount)
     return (uncurried_nft, new_did_id, new_p2_puzhash, lineage_proof)
+
+
+def get_metadata_json(metadata: Program) -> dict:
+    info = {}
+    for kv_pair in metadata.as_iter():
+        key = kv_pair.first().as_atom()
+        v = kv_pair.rest()
+        try:
+            if key == b'u':
+                info['data_uri'] = v.first().as_atom().decode("utf-8")
+            elif key == 'h':
+                info['data_hash'] = v.as_atom().hex()
+            elif key == 'mu':
+                info['metadata_uri'] = v.first().as_atom().decode("utf-8")
+            elif key == 'mh':
+                info['metadata_hash'] = v.as_atom().hex()
+            elif key == 'lu':
+                info['license_uri'] = v.first().as_atom().decode("utf-8")
+            elif key == 'lh':
+                info['license_hash'] = v.as_atom().hex()
+            elif key == 'st':
+                info['series_total'] = v.as_int()
+            elif key == 'sn':
+                info['series_number'] = v.as_int()
+        except:
+            pass
+
+    return info

@@ -79,7 +79,16 @@ class Asset(Base):
     lineage_proof = Column(JSON, nullable=False)
     p2_puzzle_hash = Column(BINARY(32), nullable=False, index=True)
     nft_did_id = Column(BINARY(32), nullable=True, doc='for nft')
-    curried_params = Column(JSON)
+    curried_params = Column(JSON, nullable=False, doc='for recurry')
+
+
+class NftMetadata(Base):
+    hash = Column(BINARY(32), primary_key=True, doc='sha256')
+    format = Column(String(32), nullable=False, server_default='')
+    name = Column(String(256), nullable=False, server_default='')
+    collection_id = Column(String(256), nullable=False, server_default='')
+    collection_name = Column(String(256), nullable=False, server_default='')
+    full_data = Column(JSON, nullable=False)
 
 
 def get_assets(db: Database, asset_type: Optional[str]=None, asset_id: Optional[bytes]=None, p2_puzzle_hash: Optional[bytes]=None, 
@@ -128,3 +137,18 @@ async def get_unspent_asset_coin_ids(db: Database):
     for row in await db.fetch_all(query):
         coin_ids.append(row.coin_id)
     return coin_ids
+
+
+async def get_nft_metadata_by_hash(db: Database, hash: bytes):
+    query = select(NftMetadata).where(NftMetadata.hash == hash)
+    return await db.fetch_val(query)
+
+
+async def save_metadata(db: Database, metadata: NftMetadata):
+    async with db.transaction():
+        return await db.execute(insert(NftMetadata).values(metadata.to_dict()).prefix_with('OR REPLACE'))
+
+
+async def get_metadata_by_hashes(db: Database, hashes: List[bytes]):
+    query = select(NftMetadata).where(NftMetadata.hash.in_(hashes))
+    return await db.fetch_all(query)
