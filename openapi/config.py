@@ -31,7 +31,7 @@ SUPPORTED_CHAINS = [
         "proxy_rpc_url": "http://127.0.0.1:8555",
         "chia_root_path": "",
         "database_uri": "sqlite+aiosqlite:///wallet_mainnet.db",
-        "enable": False,
+        "enable": True,
     },
     {
         "id": 2,
