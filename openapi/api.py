@@ -189,7 +189,7 @@ class AssetTypeEnum(str, Enum):
 @router.get('/assets')
 async def list_assets(address: str, chain: Chain = Depends(get_chain),
     asset_type: AssetTypeEnum=AssetTypeEnum.NFT, asset_id: Optional[str]=None,
-    start_height=0, limit=10):
+    offset=0, limit=10):
     """
     - the api only support did coins that use inner puzzle hash for hint, so some did coins may not return
     """
@@ -200,7 +200,7 @@ async def list_assets(address: str, chain: Chain = Depends(get_chain),
     # todo: use nftd/did indexer, now use db for cache
     assets = await get_assets(
         db, asset_type=asset_type, asset_id=hexstr_to_bytes(asset_id) if asset_id else None,
-        p2_puzzle_hash=puzzle_hash, start_height=start_height, limit=limit
+        p2_puzzle_hash=puzzle_hash, offset=offset, limit=limit
     )
 
     data = []

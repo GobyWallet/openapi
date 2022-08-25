@@ -93,7 +93,7 @@ class NftMetadata(Base):
 
 def get_assets(db: Database, asset_type: Optional[str]=None, asset_id: Optional[bytes]=None, p2_puzzle_hash: Optional[bytes]=None, 
     nft_did_id: Optional[bytes]=None, include_spent_coins=False,
-    start_height: Optional[int]=None, limit: Optional[int]=None) -> List[Asset]:
+    start_height: Optional[int]=None, offset: Optional[int]=None, limit: Optional[int]=None) -> List[Asset]:
     query = select(Asset).order_by(Asset.confirmed_height.asc())
     if asset_type:
         query = query.where(Asset.asset_type == asset_type)
@@ -105,6 +105,8 @@ def get_assets(db: Database, asset_type: Optional[str]=None, asset_id: Optional[
         query = query.where(Asset.spent_height == 0)
     if start_height:
         query = query.where(Asset.confirmed_height > start_height)
+    if offset:
+        query = query.offset(offset)
     if limit:
         query = query.limit(limit)
     return db.fetch_all(query)
