@@ -10,7 +10,7 @@ You can install Goby [here](https://chrome.google.com/webstore/detail/goby/jnkel
 
 ```
 git clone https://github.com/GobyWallet/openapi.git
-# change config.py
+# change openapi/config.py
 
 pip install -r requirements.txt
 uvicorn openapi.api:app
