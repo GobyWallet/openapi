@@ -55,7 +55,8 @@ async def init_chains(app, chains_config):
         # check client
         network_info =  await client.get_network_info()
         chain = Chain(id_hex, row['network_name'], row['network_prefix'], client)
-        chains[id_hex] = chain
+        chains[chain.id] = chain
+        chains[chain.network_name] = chain
         register_db(chain.id, row['database_uri'])
         await connect_db(chain.id)
 
@@ -120,7 +121,6 @@ async def get_utxos(address: str, chain: Chain = Depends(get_chain)):
     # todo: use block indexer
     pzh = decode_address(address, chain.network_prefix)
 
-    # the old version db has inefficient index, should set include_spent_coins=True
     coin_records = await chain.client.get_coin_records_by_puzzle_hash(puzzle_hash=pzh, include_spent_coins=False)
     data = []
 
