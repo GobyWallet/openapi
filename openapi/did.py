@@ -83,8 +83,11 @@ def get_did_info_from_coin_spend(coin: Coin, parent_cs: dict, address: bytes):
     inner_solution = solution.rest().rest().first()
     recovery_list = []
     if recovery_list_hash != Program.to([]).get_tree_hash():
-        for did in inner_solution.rest().rest().rest().rest().rest().as_python():
-            recovery_list.append(did[0])
+        try:
+            for did in inner_solution.rest().rest().rest().rest().rest().as_python():
+                recovery_list.append(did[0])
+        except:
+            pass
 
     return {
         'did_id': launcher_id,

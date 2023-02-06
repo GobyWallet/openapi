@@ -125,7 +125,7 @@ async def sync_user_assets(chain_id, address: bytes, client: FullNodeRpcClient):
     logger.debug('chain: %s, address: %s, sync from %d to %d', chain_id, address.hex(), start_height, end_height)
 
     # check did and nft coins has been spent
-    unspent_coin_ids = await get_unspent_asset_coin_ids(db)
+    unspent_coin_ids = await get_unspent_asset_coin_ids(db, address)
     for cr in await client.get_coin_records_by_names(unspent_coin_ids, include_spent_coins=True):
         spent_height = cr['spent_block_index']
         if spent_height == 0:

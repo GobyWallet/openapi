@@ -132,9 +132,10 @@ async def get_sync_height_from_db(db: Database, address: bytes):
     return (max_sync_height or 0) + 1
 
 
-async def get_unspent_asset_coin_ids(db: Database):
+async def get_unspent_asset_coin_ids(db: Database, p2_puzzle_hash: Optional[bytes]=None):
     query = select(Asset.coin_id).where(Asset.spent_height == 0)
-
+    if p2_puzzle_hash:
+        query = query.where(Asset.p2_puzzle_hash == p2_puzzle_hash)
     coin_ids = []
     for row in await db.fetch_all(query):
         coin_ids.append(row.coin_id)
