@@ -6,8 +6,10 @@ from aiocache import caches
 from .utils import hexstr_to_bytes, coin_name, to_hex, sha256
 from .types import Coin
 from .db import (
-    Asset, NftMetadata, get_db, get_sync_height_from_db, save_asset, get_unspent_asset_coin_ids,
-    update_asset_coin_spent_height, get_nft_metadata_by_hash, save_metadata
+    Asset, NftMetadata, SingletonSpend,
+    get_db, get_sync_height_from_db, save_asset, get_unspent_asset_coin_ids,
+    update_asset_coin_spent_height, get_nft_metadata_by_hash, save_metadata,
+    get_singelton_spend_by_id, delete_singleton_spend_by_id, save_singleton_spend,
 )
 
 from .did import get_did_info_from_coin_spend
@@ -146,3 +148,51 @@ async def sync_user_assets(chain_id, address: bytes, client: FullNodeRpcClient):
             await handle_coin(address, coin_record, parent_coin_spend, db)
 
     await set_sync_height(chain_id, address, end_height)
+
+
+
+async def get_and_sync_singleton(chain_id, singleton_id: bytes, client: FullNodeRpcClient):
+    db = get_db(chain_id)
+    singleton_spend = await get_singelton_spend_by_id(db, singleton_id)
+    if singleton_spend is None:
+        fetch_coin_id = singleton_id
+        spent_block_index = None
+    else:
+        fetch_coin_id = singleton_spend.coin_id
+        spent_block_index = singleton_spend.spent_block_index
+    odd_coin_record = None
+    while spent_block_index is None or spent_block_index > 0:
+        coin_recrods = await client.get_coin_records_by_parent_ids([fetch_coin_id, ], include_spent_coins=True, start_height=spent_block_index, end_height=spent_block_index + 1 if spent_block_index else None)
+        odd_coin_record = None
+        for cr in coin_recrods:
+            if cr['coin']['amount'] % 2 == 1:
+                if odd_coin_record is not None:
+                    raise ValueError('more than one odd coin')
+                odd_coin_record = cr
+        if odd_coin_record is None:
+            break
+        spent_block_index = odd_coin_record['spent_block_index']
+        odd_coin = Coin.from_json_dict(odd_coin_record['coin'])
+        fetch_coin_id = odd_coin.name()
+
+    if odd_coin_record is None:
+        if singleton_spend:
+            # maybe reorg
+            await delete_singleton_spend_by_id(db, singleton_id)
+            return await get_and_sync_singleton(chain_id, singleton_id, client)
+        else:
+            raise ValueError("This is not a singleton")
+
+    parent_coin_id = hexstr_to_bytes(odd_coin_record['coin']['parent_coin_info'])
+    await save_singleton_spend(db, SingletonSpend(
+        singleton_id=singleton_id,
+        coin_id=parent_coin_id,
+        spent_block_index=odd_coin_record['confirmed_block_index']))
+        
+
+    coin_spend = await client.get_puzzle_and_solution(parent_coin_id, odd_coin_record['confirmed_block_index'])
+    return {
+        'parent_coin_spend': coin_spend,
+        'current_coin': odd_coin_record['coin']
+    }
+

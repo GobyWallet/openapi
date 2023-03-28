@@ -14,7 +14,7 @@ from .utils.bech32m import decode_puzzle_hash, encode_puzzle_hash
 from .utils.singleflight import SingleFlight
 from .rpc_client import FullNodeRpcClient
 from .types import Coin, Program
-from .sync import sync_user_assets
+from .sync import sync_user_assets, get_and_sync_singleton
 from .db import get_db, get_assets, register_db, connect_db, disconnect_db, get_metadata_by_hashes
 from . import config as settings
 
@@ -172,9 +172,16 @@ async def query_balance(address: str, chain: Chain = Depends(get_chain)):
     # todo: use block indexer
     puzzle_hash = decode_address(address, chain.network_prefix)
     coin_records = await chain.client.get_coin_records_by_puzzle_hash(puzzle_hash=puzzle_hash, include_spent_coins=False)
-    amount = sum([c['coin']['amount'] for c in coin_records if not c['spent']])
+    amount = 0
+    coin_num = 0
+    for row in coin_records:
+        if row['spent']:
+            continue
+        amount += row['coin']['amount']
+        coin_num += 1
     data = {
-        'amount': amount
+        'amount': amount,
+        'coin_num': coin_num,
     }
     return data
 
@@ -217,6 +224,21 @@ async def list_assets(address: str, chain: Chain = Depends(get_chain),
         data.append(item)
 
     return data
+
+
+@router.get('/latest_singleton')
+async def get_latest_singleton(singleton_id: str, chain: Chain = Depends(get_chain)):
+    try:
+        singleton_id = hexstr_to_bytes(singleton_id)
+        if len(singleton_id) != 32:
+            raise ValueError("invalid singleton id")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid singleton ID") from e
+
+    try:
+        return await sf.do(b'singleton' + singleton_id, lambda : get_and_sync_singleton(chain.id, singleton_id, chain.client))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 app.include_router(router, prefix="/v1")

@@ -82,6 +82,12 @@ class Asset(Base):
     curried_params = Column(JSON, nullable=False, doc='for recurry')
 
 
+class SingletonSpend(Base):
+    singleton_id = Column(BINARY(32), primary_key=True)
+    coin_id = Column(BINARY(32), nullable=False)
+    spent_block_index = Column(Integer, nullable=False, server_default='0')
+
+
 class NftMetadata(Base):
     hash = Column(BINARY(32), primary_key=True, doc='sha256')
     format = Column(String(32), nullable=False, server_default='')
@@ -103,6 +109,8 @@ def get_assets(db: Database, asset_type: Optional[str]=None, asset_id: Optional[
         query = query.where(Asset.nft_did_id == nft_did_id)
     if not include_spent_coins:
         query = query.where(Asset.spent_height == 0)
+    if asset_id:
+        query = query.where(Asset.asset_id == asset_id)
     if start_height:
         query = query.where(Asset.confirmed_height > start_height)
     if offset:
@@ -155,3 +163,18 @@ async def save_metadata(db: Database, metadata: NftMetadata):
 async def get_metadata_by_hashes(db: Database, hashes: List[bytes]):
     query = select(NftMetadata).where(NftMetadata.hash.in_(hashes))
     return await db.fetch_all(query)
+
+
+async def get_singelton_spend_by_id(db: Database, singleton_id):
+    query = select(SingletonSpend).where(SingletonSpend.singleton_id == singleton_id)
+    return await db.fetch_one(query)
+
+
+async def delete_singleton_spend_by_id(db: Database, singleton_id):
+    query = delete(SingletonSpend).where(SingletonSpend.singleton_id == singleton_id)
+    return await db.execute(query)
+
+
+async def save_singleton_spend(db: Database, item: SingletonSpend):
+    async with db.transaction():
+        return await db.execute(insert(SingletonSpend).values(item.to_dict()).prefix_with('OR REPLACE'))

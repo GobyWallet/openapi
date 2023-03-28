@@ -160,8 +160,25 @@ class FullNodeRpcClient:
 
         response = await self.fetch("get_coin_records_by_names", d)
         return response["coin_records"]
+    
+
+    async def get_coin_record_by_name(self, name: bytes32):
+        response = await self.fetch("get_coin_record_by_name", {"name": name.hex()})
+        return response['coin_record']
 
 
     async def get_puzzle_and_solution(self, coin_id: bytes32, height: int):
         response = await self.fetch("get_puzzle_and_solution", {"coin_id": coin_id.hex(), "height": height})
         return response['coin_solution']
+
+    async def get_coin_records_by_parent_ids(self, parent_ids: List[bytes32], include_spent_coins: bool = True,
+        start_height: Optional[int] = None,
+        end_height: Optional[int] = None):
+        parent_ids_hex = [pid.hex() for pid in parent_ids]
+        d = {"parent_ids": parent_ids_hex, "include_spent_coins": include_spent_coins}
+        if start_height is not None:
+            d["start_height"] = start_height
+        if end_height is not None:
+            d["end_height"] = end_height
+        response = await self.fetch("get_coin_records_by_parent_ids", d)
+        return response['coin_records']
