@@ -10,3 +10,5 @@ clvm==0.9.7
 clvm_tools==0.4.4
 SQLAlchemy==1.4.38
 databases[aiosqlite]==0.6.0
+msgpack==1.0.4
+ujson==5.5.0
