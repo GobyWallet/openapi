@@ -20,7 +20,7 @@ from .db import (
 from .utils import hexstr_to_bytes, coin_name
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("openapi.watcher")
 
 
 class Watcher:
@@ -136,6 +136,6 @@ if __name__ == '__main__':
     from . import log_dir
     from .config import settings
     logzero.setup_logger(
-    'root', level=logging.getLevelName(settings['LOG_LEVEL']), logfile=os.path.join(log_dir, "watcher.log"),
+    'openapi', level=logging.getLevelName(settings['LOG_LEVEL']), logfile=os.path.join(log_dir, "watcher.log"),
     disableStderrLogger=True)
     asyncio.run(main())

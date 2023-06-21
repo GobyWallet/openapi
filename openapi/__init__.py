@@ -13,5 +13,5 @@ if not os.path.exists(log_dir):
 from .config import settings
 
 logger = logzero.setup_logger(
-    'root', level=logging.getLevelName(settings['LOG_LEVEL']), logfile=os.path.join(log_dir, "api.log"),
+    __name__, level=logging.getLevelName(settings['LOG_LEVEL']), logfile=os.path.join(log_dir, "api.log"),
     disableStderrLogger=True)
