@@ -1,7 +1,7 @@
 from typing import Optional, List, Any
 from databases import Database
 import sqlalchemy
-from sqlalchemy import inspect, Column, ForeignKey, Integer, String, BINARY, BLOB, JSON
+from sqlalchemy import inspect, Column, ForeignKey, Integer, String, BINARY, BLOB, JSON, Boolean
 from sqlalchemy import select, update, insert, func
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
 
@@ -97,6 +97,20 @@ class NftMetadata(Base):
     full_data = Column(JSON, nullable=False)
 
 
+class Block(Base):
+    hash = Column(BINARY(32), primary_key=True)
+    height = Column(Integer, unique=True, nullable=False)
+    timestamp = Column(Integer, nullable=False)
+    prev_hash = Column(BINARY(32), nullable=False)
+    is_tx = Column(Boolean, nullable=False)
+
+
+class AddressSync(Base):
+    __tablename__ = 'address_sync'
+    address = Column(BINARY(32), primary_key=True)
+    height = Column(Integer, nullable=False, server_default='0')
+
+
 def get_assets(db: Database, asset_type: Optional[str]=None, asset_id: Optional[bytes]=None, p2_puzzle_hash: Optional[bytes]=None, 
     nft_did_id: Optional[bytes]=None, include_spent_coins=False,
     start_height: Optional[int]=None, offset: Optional[int]=None, limit: Optional[int]=None) -> List[Asset]:
@@ -120,9 +134,9 @@ def get_assets(db: Database, asset_type: Optional[str]=None, asset_id: Optional[
     return db.fetch_all(query)
 
 
-async def update_asset_coin_spent_height(db: Database, coin_id: bytes, spent_height: int):
+async def update_asset_coin_spent_height(db: Database, coin_ids: List[bytes], spent_height: int):
     sql = update(Asset)\
-        .where(Asset.coin_id == coin_id)\
+        .where(Asset.coin_id.in_(coin_ids))\
         .values(spent_height=spent_height)
     async with db.transaction():
         await db.execute(sql)
@@ -131,13 +145,6 @@ async def update_asset_coin_spent_height(db: Database, coin_id: bytes, spent_hei
 async def save_asset(db: Database, asset: Asset):
     async with db.transaction():
         return await db.execute(insert(Asset).values(asset.to_dict()).prefix_with('OR REPLACE'))
-
-
-
-async def get_sync_height_from_db(db: Database, address: bytes):
-    query = select(func.max(Asset.confirmed_height)).where(Asset.p2_puzzle_hash == address)
-    max_sync_height = await db.fetch_val(query)
-    return (max_sync_height or 0) + 1
 
 
 async def get_unspent_asset_coin_ids(db: Database, p2_puzzle_hash: Optional[bytes]=None):
@@ -172,9 +179,62 @@ async def get_singelton_spend_by_id(db: Database, singleton_id):
 
 async def delete_singleton_spend_by_id(db: Database, singleton_id):
     query = delete(SingletonSpend).where(SingletonSpend.singleton_id == singleton_id)
-    return await db.execute(query)
+    async with db.transaction():
+        return await db.execute(query)
 
 
 async def save_singleton_spend(db: Database, item: SingletonSpend):
     async with db.transaction():
         return await db.execute(insert(SingletonSpend).values(item.to_dict()).prefix_with('OR REPLACE'))
+
+
+
+async def get_latest_tx_block_number(db: Database):
+    query = select(Block.height).where(Block.is_tx == True).order_by(Block.height.desc()).limit(1)
+    return await db.fetch_val(query)
+
+
+async def get_latest_blocks(db: Database, num):
+    query = select(Block).order_by(Block.height.desc()).limit(num)
+    return await db.fetch_all(query)
+
+
+async def save_block(db: Database, block: Block):
+    async with db.transaction():
+        return await db.execute(insert(Block).values(block.to_dict()))
+
+async def get_block_by_height(db: Database, height):
+    query = select(Block).where(Block.height == height)
+    return await db.fetch_one(query)
+
+
+async def delete_block_after_height(db: Database, height):
+    query = delete(Block).where(Block.height > height)
+    async with db.transaction():
+        return await db.execute(query)
+
+
+async def save_address_sync_height(db: Database, address: bytes, height: int):
+    async with db.transaction():
+        return await db.execute(insert(AddressSync).values(address=address, height=height).prefix_with('OR REPLACE'))
+
+
+async def get_address_sync_height(db: Database, address: bytes):
+    query = select(AddressSync).where(AddressSync.address == address)
+    return await db.fetch_one(query)
+
+
+async def reorg(db: Database, block_height: int):
+    # block_height is correct, +1 is error
+    async with db.transaction():
+        # delete confiremd_height > block_height
+        await db.execute(delete(Asset).where(Asset.confirmed_height > block_height))
+
+        # make spent_height = 0 where spent_height > block_height
+        await db.execute(update(Asset).where(Asset.spent_height > block_height).values(spent_height=0))
+
+        # update address sync height
+        await db.execute(update(AddressSync).where(AddressSync.last_synced_height > block_height).values(last_synced_height=block_height))
+
+        # delete block > block_height
+        await db.execute(delete(Block).where(Block.height > block_height))

@@ -1,0 +1,37 @@
+LOG_LEVEL = "INFO"
+
+SECONDS_PER_BLOCK = 18.75
+
+RPC_METHOD_WHITE_LIST = [
+    'get_puzzle_and_solution',
+    'get_coin_records_by_puzzle_hash',
+    'get_coin_records_by_puzzle_hashes',
+    'get_coin_record_by_name',
+    'get_coin_records_by_names',
+    'get_coin_records_by_parent_ids',
+]
+
+[CACHE]
+cache="aiocache.SimpleMemoryCache"
+
+#cache="aiocache.RedisCache"
+#endpoint="127.0.0.1"
+#port=6379
+#password=""
+
+[SUPPORTED_CHAINS]
+[SUPPORTED_CHAINS.mainnet]
+id = 1
+network_name = "mainnet"
+network_prefix = "xch"
+rpc_url_or_chia_path = "http://127.0.0.1:8555"
+database_uri = "sqlite+aiosqlite:///wallet_mainnet.db"
+enable = true
+
+[SUPPORTED_CHAINS.testnet10]
+id = 2
+network_name = "testnet10"
+network_prefix = "txch"
+rpc_url_or_chia_path = "http://127.0.0.1:8556"
+database_uri = "sqlite+aiosqlite:///wallet_testnet10.db"
+enable = false

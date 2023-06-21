@@ -84,11 +84,12 @@ class FullNodeRpcClient:
         return await self.fetch("get_network_info", {})
     
     async def get_blockchain_state(self):
-        return await self.fetch("get_blockchain_state", {})
+        resp = await self.fetch("get_blockchain_state", {})
+        return resp['blockchain_state']
 
     async def get_block_number(self):
         resp = await self.sf.do('block_number', lambda: self.get_blockchain_state()) 
-        return resp['blockchain_state']['peak']['height']
+        return resp['peak']['height']
 
     async def get_coin_records_by_puzzle_hash(
         self,
@@ -182,3 +183,11 @@ class FullNodeRpcClient:
             d["end_height"] = end_height
         response = await self.fetch("get_coin_records_by_parent_ids", d)
         return response['coin_records']
+    
+    async def get_block_record_by_height(self, height: int):
+        response = await self.fetch("get_block_record_by_height", {"height": height})
+        return response['block_record']
+    
+    async def get_additions_and_removals(self, header_hash: bytes32):
+        response = await self.fetch("get_additions_and_removals", {"header_hash": header_hash.hex()})
+        return response['additions'], response['removals']

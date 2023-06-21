@@ -7,9 +7,10 @@ from .utils import hexstr_to_bytes, coin_name, to_hex, sha256
 from .types import Coin
 from .db import (
     Asset, NftMetadata, SingletonSpend,
-    get_db, get_sync_height_from_db, save_asset, get_unspent_asset_coin_ids,
+    get_db, save_asset, get_unspent_asset_coin_ids,
     update_asset_coin_spent_height, get_nft_metadata_by_hash, save_metadata,
     get_singelton_spend_by_id, delete_singleton_spend_by_id, save_singleton_spend,
+    get_address_sync_height, save_address_sync_height, get_latest_tx_block_number,
 )
 
 from .did import get_did_info_from_coin_spend
@@ -18,20 +19,6 @@ from .rpc_client import FullNodeRpcClient
 
 logger = logging.getLogger(__name__)
 
-DELAY_BLOCK = 5
-
-
-async def get_sync_height(chain_id, address: bytes):
-    cache = caches.get('default')
-    key = f"sync:{chain_id}:{address.hex()}"
-    height = await cache.get(key, default=0)
-    return height
-
-
-async def set_sync_height(chain_id, address: bytes, height: int):
-    cache = caches.get('default')
-    key = f"sync:{chain_id}:{address.hex()}"
-    await cache.set(key, height, ttl=3600*24*3)
 
 
 async def fetch_nft_metadata(db, url: str, hash: bytes):
@@ -116,26 +103,24 @@ async def sync_user_assets(chain_id, address: bytes, client: FullNodeRpcClient):
     """
     # todo: use singleflight or use special process to sync
     db = get_db(chain_id)
-    start_height = await get_sync_height(chain_id, address)
-    if not start_height:
-        start_height = await get_sync_height_from_db(db, address)
 
-    end_height = (await client.get_block_number()) - DELAY_BLOCK
+    start_height_info = await get_address_sync_height(db, address)
+    if start_height_info:
+        start_height = start_height_info['height'] + 1
+    else:
+        start_height = 1
+
+    end_height = await get_latest_tx_block_number(db)
+    if end_height is None:
+        end_height = await client.get_block_number()
+    
     if start_height >= end_height:
         return
 
     logger.debug('chain: %s, address: %s, sync from %d to %d', chain_id, address.hex(), start_height, end_height)
 
-    # check did and nft coins has been spent
-    unspent_coin_ids = await get_unspent_asset_coin_ids(db, address)
-    for cr in await client.get_coin_records_by_names(unspent_coin_ids, include_spent_coins=True):
-        spent_height = cr['spent_block_index']
-        if spent_height == 0:
-            continue
-        await update_asset_coin_spent_height(db, coin_name(**cr['coin']), spent_height)
-
     coin_records = await client.get_coin_records_by_hint(
-        address, include_spent_coins=False, start_height=start_height, end_height=end_height)
+        address, include_spent_coins=False, start_height=start_height, end_height=end_height+1)
     
     logger.debug('hint records: %d', len(coin_records))
     if coin_records:
@@ -147,7 +132,7 @@ async def sync_user_assets(chain_id, address: bytes, client: FullNodeRpcClient):
         for coin_record, parent_coin_spend in zip(coin_records, pz_and_solutions):
             await handle_coin(address, coin_record, parent_coin_spend, db)
 
-    await set_sync_height(chain_id, address, end_height)
+    await save_address_sync_height(db, address, end_height)
 
 
 

@@ -16,12 +16,12 @@ from .rpc_client import FullNodeRpcClient
 from .types import Coin, Program
 from .sync import sync_user_assets, get_and_sync_singleton
 from .db import get_db, get_assets, register_db, connect_db, disconnect_db, get_metadata_by_hashes
-from . import config as settings
+from .config import settings
 
 
 logger = logging.getLogger(__name__)
 
-caches.set_config(settings.CACHE_CONFIG)
+caches.set_config({'default': settings.CACHE})
 
 app = FastAPI()
 
@@ -45,10 +45,12 @@ async def init_chains(app, chains_config):
             continue
         id_hex = int_to_hex(row['id'])
 
-        if row.get('proxy_rpc_url'):
-            client = await FullNodeRpcClient.create_by_proxy_url(row['proxy_rpc_url'])
-        elif row.get('chia_root_path'):
-            client = await FullNodeRpcClient.create_by_chia_root_path(row['chia_root_path'])
+        rpc_url_or_chia_path = row.get('rpc_url_or_chia_path')
+        if rpc_url_or_chia_path:
+            if rpc_url_or_chia_path.startswith("http"):
+                client = await FullNodeRpcClient.create_by_proxy_url(rpc_url_or_chia_path)
+            else:
+                client = await FullNodeRpcClient.create_by_chia_root_path(rpc_url_or_chia_path)
         else:
             raise ValueError(f"chian {row['id']} has no full node rpc config")
         
@@ -66,7 +68,7 @@ async def init_chains(app, chains_config):
 @app.on_event("startup")
 async def startup():
     logger.info("begin init")
-    await init_chains(app, settings.SUPPORTED_CHAINS)
+    await init_chains(app, settings.SUPPORTED_CHAINS.values())
     logger.info("finish init")
 
 
