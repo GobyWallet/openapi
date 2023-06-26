@@ -2,7 +2,7 @@ from typing import Optional, List, Any
 from databases import Database
 import sqlalchemy
 from sqlalchemy import inspect, Column, ForeignKey, Integer, String, BINARY, BLOB, JSON, Boolean
-from sqlalchemy import select, update, insert, func
+from sqlalchemy import select, update, insert, delete, func
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
 
 from . import config as settings
@@ -234,7 +234,7 @@ async def reorg(db: Database, block_height: int):
         await db.execute(update(Asset).where(Asset.spent_height > block_height).values(spent_height=0))
 
         # update address sync height
-        await db.execute(update(AddressSync).where(AddressSync.last_synced_height > block_height).values(last_synced_height=block_height))
+        await db.execute(update(AddressSync).where(AddressSync.height > block_height).values(height=block_height))
 
         # delete block > block_height
         await db.execute(delete(Block).where(Block.height > block_height))

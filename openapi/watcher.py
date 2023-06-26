@@ -31,7 +31,7 @@ class Watcher:
 
     async def reorg(self, block_height: int):
         # block height block is correct, +1 is error
-        await reorg_db(block_height)
+        await reorg_db(self.db, block_height)
         logger.info("reorg success: %d", block_height)
 
 
@@ -90,7 +90,7 @@ class Watcher:
                 check_height = start_height - 1
                 while check_height:
                     bc = await self.client.get_block_record_by_height(height=check_height)
-                    db_block = await get_block_by_height(check_height)
+                    db_block = await get_block_by_height(self.db, check_height)
                     if hexstr_to_bytes(bc['header_hash']) == bytes(db_block['hash']):
                         prev_block = db_block
                         break
