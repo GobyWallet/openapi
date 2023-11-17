@@ -1,7 +1,9 @@
 """
 check tx status
 """
+import os
 import asyncio
+import argparse
 import json
 import logging
 import time
@@ -120,22 +122,29 @@ class Watcher:
         await update_asset_coin_spent_height(self.db, removals_id, block.height)
 
 
-async def main():
+async def main(networks: List[str] = None):
     from .config import settings
     tasks = []
     for row in settings.SUPPORTED_CHAINS.values():
-        if row.get('enable') == False:
-            continue
+
+        if networks is None:
+            if row.get('enable') == False:
+                continue
+        else:
+            if row['network_name'] not in networks:
+                continue
         
         db = Database(row['database_uri'])
         tasks.append(Watcher(row['rpc_url_or_chia_path'], db).start())
     await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
-    import os
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--networks', nargs='+', help='networks to watch')
+    args = parser.parse_args()
     from . import log_dir
     from .config import settings
     logzero.setup_logger(
     'openapi', level=logging.getLevelName(settings['LOG_LEVEL']), logfile=os.path.join(log_dir, "watcher.log"),
     disableStderrLogger=True)
-    asyncio.run(main())
+    asyncio.run(main(args.networks))

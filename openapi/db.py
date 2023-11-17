@@ -135,11 +135,15 @@ def get_assets(db: Database, asset_type: Optional[str]=None, asset_id: Optional[
 
 
 async def update_asset_coin_spent_height(db: Database, coin_ids: List[bytes], spent_height: int):
-    sql = update(Asset)\
-        .where(Asset.coin_id.in_(coin_ids))\
-        .values(spent_height=spent_height)
+    
+    chunk_size = 200
     async with db.transaction():
-        await db.execute(sql)
+        for i in range(0, len(coin_ids), chunk_size):
+            chunk_ids = coin_ids[i: i+chunk_size]
+            sql = update(Asset)\
+            .where(Asset.coin_id.in_(chunk_ids))\
+            .values(spent_height=spent_height)
+            await db.execute(sql)
 
 
 async def save_asset(db: Database, asset: Asset):
