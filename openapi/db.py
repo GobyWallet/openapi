@@ -43,6 +43,10 @@ async def connect_db(key=None):
         db = KEY_DBS[key]
         create_tables(db)
         await db.connect()
+        if "sqlite" in str(db.url):
+            await db.execute(
+                "PRAGMA journal_mode = WAL"
+            )
 
 
 async def disconnect_db(key=None):

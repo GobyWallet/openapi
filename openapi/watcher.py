@@ -43,6 +43,8 @@ class Watcher:
         else:
             self.client = await FullNodeRpcClient.create_by_chia_root_path(self.url_or_path)
         await self.db.connect()
+        if "sqlite" in str(self.db.url):
+            await self.db.execute("PRAGMA journal_mode = WAL")
 
         try:
             prev_block = (await get_latest_blocks(self.db, 1))[0]
@@ -104,9 +106,14 @@ class Watcher:
                 await self.reorg(check_height)
             else:
                 if block.is_tx:
-                    s = time.monotonic()
-                    await self.new_block(block)
-                    logger.info('block time cost: %s', time.monotonic() - s)
+                    try:
+                        s = time.monotonic()
+                        await self.new_block(block)
+                        logger.info('block time cost: %s', time.monotonic() - s)
+                    except Exception as e:
+                        logger.error("new block error: %s", e, exc_info=True)
+                        continue
+                    
                 await save_block(self.db, block)
                 prev_block = block
             start_height += 1
