@@ -140,15 +140,23 @@ class SendTxBody(BaseModel):
 @router.post("/sendtx")
 async def create_transaction(item: SendTxBody, chain: Chain = Depends(get_chain)):
     spb = item.spend_bundle
-    try:
-        spb = sanitize_obj_hex(spb)
-        resp = await chain.client.push_tx(spb)
-    except ValueError as e:
-        logger.warning("sendtx: %s, error: %r", spb, e)
-        raise HTTPException(400, str(e))
-    return {
-        'status': resp['status'],
-    }
+    spb = sanitize_obj_hex(spb)
+    retry_during_sync_number = 2
+    while retry_during_sync_number:
+        retry_during_sync_number -= 1
+        try:
+            resp = await chain.client.push_tx(spb)
+            return {
+               'status': resp['status'],
+            }
+        except ValueError as e:
+            err_str = str(e)
+            if 'NO_TRANSACTIONS_WHILE_SYNCING' in err_str:
+                await asyncio.sleep(5)
+                continue
+            logger.warning("sendtx: %s, error: %r", spb, e)
+            raise HTTPException(400, err_str)
+    raise HTTPException(400, "sendtx: timeout")
 
 
 class ChiaRpcParams(BaseModel):
