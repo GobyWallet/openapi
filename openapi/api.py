@@ -251,4 +251,26 @@ async def get_latest_singleton(singleton_id: str, chain: Chain = Depends(get_cha
         raise HTTPException(status_code=400, detail=str(e))
 
 
+class FeeEstimateBody(BaseModel):
+    cost: int
+
+
+@router.post('/fee_estimate')
+async def get_fee_estimate(item: FeeEstimateBody, chain: Chain = Depends(get_chain)):
+    target_times = [60, 120, 300]
+    if item.cost <= 0:
+        raise HTTPException(400, "invalid `cost`")
+    resp = await chain.client.get_fee_estimate(target_times, item.cost)
+    estimates = resp['estimates']
+    is_full = item.cost + resp['mempool_size'] > resp['mempool_max_size']
+    print(is_full, resp)
+    nonzero_fee_minimum_fpc = 5
+    if is_full:
+        minimum_fee = nonzero_fee_minimum_fpc * item.cost
+        estimates = [int(minimum_fee*1.5), int(minimum_fee *1.1), minimum_fee]
+    return {
+        'estimates': estimates
+    }
+
+
 app.include_router(router, prefix="/v1")

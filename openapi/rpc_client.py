@@ -191,3 +191,7 @@ class FullNodeRpcClient:
     async def get_additions_and_removals(self, header_hash: bytes32):
         response = await self.fetch("get_additions_and_removals", {"header_hash": header_hash.hex()})
         return response['additions'], response['removals']
+
+    async def get_fee_estimate(self, target_times: Optional[List[int]], cost: Optional[int]):
+        response = await self.fetch("get_fee_estimate", {"target_times": target_times, "cost": cost})
+        return response
