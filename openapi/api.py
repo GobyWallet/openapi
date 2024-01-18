@@ -263,7 +263,6 @@ async def get_fee_estimate(item: FeeEstimateBody, chain: Chain = Depends(get_cha
     resp = await chain.client.get_fee_estimate(target_times, item.cost)
     estimates = resp['estimates']
     is_full = item.cost + resp['mempool_size'] > resp['mempool_max_size']
-    print(is_full, resp)
     nonzero_fee_minimum_fpc = 5
     if is_full:
         minimum_fee = nonzero_fee_minimum_fpc * item.cost
