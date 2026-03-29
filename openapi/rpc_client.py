@@ -1,11 +1,13 @@
 import asyncio
-from pathlib import Path
-from urllib.parse import urljoin
 import ssl
+from pathlib import Path
 from ssl import SSLContext
-from typing import Dict, List, Optional, Any
-import yaml
+from typing import Any, List, Optional
+from urllib.parse import urljoin
+
 import aiohttp
+import yaml
+
 from .utils.singleflight import SingleFlight
 
 bytes32 = bytes
@@ -34,7 +36,7 @@ class FullNodeRpcClient:
 
     def __init__(self):
         self.sf = SingleFlight()
-        
+
     @classmethod
     async def create_by_chia_root_path(cls, chia_root_path):
         self = cls()
@@ -50,7 +52,7 @@ class FullNodeRpcClient:
         self.ssl_context = ssl_context_for_client(ca_cert_path, ca_key_path, private_cert_path, private_key_path)
         self.closing_task = None
         return self
-    
+
     @classmethod
     async def create_by_proxy_url(cls, proxy_url):
         self = cls()
@@ -59,14 +61,18 @@ class FullNodeRpcClient:
         self.ssl_context = None
         self.closing_task = None
         return self
-    
+
     async def raw_fetch(self, path, request_json):
-        async with self.session.post(urljoin(self.url, path), json=request_json, ssl_context=self.ssl_context) as response:
+        async with self.session.post(
+            urljoin(self.url, path), json=request_json, ssl_context=self.ssl_context
+        ) as response:
             res_json = await response.json()
             return res_json
 
     async def fetch(self, path, request_json) -> Any:
-        async with self.session.post(urljoin(self.url, path), json=request_json, ssl_context=self.ssl_context) as response:
+        async with self.session.post(
+            urljoin(self.url, path), json=request_json, ssl_context=self.ssl_context
+        ) as response:
             response.raise_for_status()
             res_json = await response.json()
             if not res_json["success"]:
@@ -82,13 +88,13 @@ class FullNodeRpcClient:
 
     async def get_network_info(self):
         return await self.fetch("get_network_info", {})
-    
+
     async def get_blockchain_state(self):
         resp = await self.fetch("get_blockchain_state", {})
         return resp['blockchain_state']
 
     async def get_block_number(self):
-        resp = await self.sf.do('block_number', lambda: self.get_blockchain_state()) 
+        resp = await self.sf.do('block_number', lambda: self.get_blockchain_state())
         return resp['peak']['height']
 
     async def get_coin_records_by_puzzle_hash(
@@ -144,7 +150,7 @@ class FullNodeRpcClient:
             request['end_height'] = end_height
         response = await self.fetch("get_coin_records_by_hint", request)
         return response["coin_records"]
-    
+
     async def get_coin_records_by_names(
         self,
         names: List[bytes32],
@@ -161,7 +167,7 @@ class FullNodeRpcClient:
 
         response = await self.fetch("get_coin_records_by_names", d)
         return response["coin_records"]
-    
+
 
     async def get_coin_record_by_name(self, name: bytes32):
         response = await self.fetch("get_coin_record_by_name", {"name": name.hex()})
@@ -183,11 +189,11 @@ class FullNodeRpcClient:
             d["end_height"] = end_height
         response = await self.fetch("get_coin_records_by_parent_ids", d)
         return response['coin_records']
-    
+
     async def get_block_record_by_height(self, height: int):
         response = await self.fetch("get_block_record_by_height", {"height": height})
         return response['block_record']
-    
+
     async def get_additions_and_removals(self, header_hash: bytes32):
         response = await self.fetch("get_additions_and_removals", {"header_hash": header_hash.hex()})
         return response['additions'], response['removals']

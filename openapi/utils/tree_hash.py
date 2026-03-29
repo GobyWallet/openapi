@@ -1,8 +1,8 @@
 from typing import Optional, Set
 
 from clvm import CLVMObject
-from . import sha256
 
+from . import sha256
 
 bytes32 = bytes
 std_hash = sha256

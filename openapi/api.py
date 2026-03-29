@@ -1,37 +1,31 @@
-import os
-import json
-from dataclasses import dataclass
-from enum import Enum
-from typing import List, Optional, Dict
 import asyncio
 import logging
-from fastapi import FastAPI, APIRouter, Request, Body, Depends, HTTPException
-from fastapi.responses import JSONResponse
-from aiocache import caches, cached, Cache
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, List, Optional
+
+from aiocache import Cache, cached, caches
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
-from .utils import int_to_hex, hexstr_to_bytes, to_hex, sanitize_obj_hex
-from .utils.bech32m import decode_puzzle_hash, encode_puzzle_hash
-from .utils.singleflight import SingleFlight
-from .rpc_client import FullNodeRpcClient
-from .types import Coin, Program
-from .sync import sync_user_assets, get_and_sync_singleton
+
+from .config import settings
 from .db import (
-    get_db,
-    get_assets,
-    register_db,
     connect_db,
     disconnect_db,
-    get_metadata_by_hashes,
+    get_assets,
+    get_db,
+    register_db,
 )
-from .config import settings
-
+from .rpc_client import FullNodeRpcClient
+from .sync import get_and_sync_singleton, sync_user_assets
+from .utils import hexstr_to_bytes, int_to_hex, sanitize_obj_hex, to_hex
+from .utils.bech32m import decode_puzzle_hash
+from .utils.singleflight import SingleFlight
 
 logger = logging.getLogger(__name__)
 
 caches.set_config({"default": settings.CACHE})
-
-app = FastAPI()
-
 
 RPC_METHOD_WHITE_LIST = set(settings.RPC_METHOD_WHITE_LIST)
 
@@ -42,31 +36,25 @@ class Chain:
     network_name: str
     network_prefix: str
     client: FullNodeRpcClient
-    # db:
 
 
 async def init_chains(app, chains_config):
     chains: Dict[str, Chain] = {}
     for row in chains_config:
-        if row.get("enable") == False:
+        if not row.get("enable", True):
             continue
         id_hex = int_to_hex(row["id"])
 
         rpc_url_or_chia_path = row.get("rpc_url_or_chia_path")
         if rpc_url_or_chia_path:
             if rpc_url_or_chia_path.startswith("http"):
-                client = await FullNodeRpcClient.create_by_proxy_url(
-                    rpc_url_or_chia_path
-                )
+                client = await FullNodeRpcClient.create_by_proxy_url(rpc_url_or_chia_path)
             else:
-                client = await FullNodeRpcClient.create_by_chia_root_path(
-                    rpc_url_or_chia_path
-                )
+                client = await FullNodeRpcClient.create_by_chia_root_path(rpc_url_or_chia_path)
         else:
             raise ValueError(f"chian {row['id']} has no full node rpc config")
 
-        # check client
-        network_info = await client.get_network_info()
+        await client.get_network_info()
         chain = Chain(id_hex, row["network_name"], row["network_prefix"], client)
         chains[chain.id] = chain
         chains[chain.network_name] = chain
@@ -76,19 +64,19 @@ async def init_chains(app, chains_config):
     app.state.chains = chains
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     logger.info("begin init")
     await init_chains(app, settings.SUPPORTED_CHAINS.values())
     logger.info("finish init")
-
-
-@app.on_event("shutdown")
-async def shutdown():
+    yield
     for chain in app.state.chains.values():
         chain.client.close()
         await chain.client.await_closed()
         await disconnect_db(chain.id)
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 def decode_address(address, prefix):

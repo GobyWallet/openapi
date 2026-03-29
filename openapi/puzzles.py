@@ -1,10 +1,10 @@
 import importlib
 import inspect
-import os
 import pathlib
 from typing import Union
 
 from clvm_tools.clvmc import compile_clvm
+
 from .types import Program
 
 

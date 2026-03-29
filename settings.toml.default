@@ -12,9 +12,9 @@ RPC_METHOD_WHITE_LIST = [
 ]
 
 [CACHE]
-cache="aiocache.SimpleMemoryCache"
+class="aiocache.SimpleMemoryCache"
 
-#cache="aiocache.RedisCache"
+#class="aiocache.RedisCache"
 #endpoint="127.0.0.1"
 #port=6379
 #password=""

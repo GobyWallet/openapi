@@ -2,14 +2,11 @@
 ref https://github.com/Chia-Network/chia-blockchain/blob/main_dids/chia/wallet/nft_wallet/uncurry_nft.py
 """
 import logging
-from typing import Type, TypeVar, Any, List, Dict, Optional, Tuple
-import dataclasses
 from dataclasses import dataclass
-from clvm.casts import int_from_bytes
+from typing import Any, Dict, Optional, Tuple, TypeVar
 
-from .puzzles import SINGLETON_TOP_LAYER_MOD, NFT_STATE_LAYER_MOD, NFT_OWNERSHIP_LAYER
-from .types import Coin, Program, LineageProof
-
+from .puzzles import NFT_OWNERSHIP_LAYER, NFT_STATE_LAYER_MOD, SINGLETON_TOP_LAYER_MOD
+from .types import Coin, LineageProof, Program
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +107,7 @@ class UncurriedNFT:
 
         mod, curried_args = curried_args.rest().first().uncurry()
         if mod != NFT_MOD:
-            raise ValueError(f"Cannot uncurry NFT puzzle, failed on NFT state layer")
+            raise ValueError("Cannot uncurry NFT puzzle, failed on NFT state layer")
         try:
             # Set nft parameters
             nft_mod_hash, metadata, metadata_updater_hash, inner_puzzle = curried_args.as_iter()
@@ -284,7 +281,7 @@ def get_new_owner_did(unft: UncurriedNFT, solution: Program) -> Optional[bytes32
             # this is the change owner magic condition
             new_did_id = condition.at("rf").atom
     return new_did_id
- 
+
 
 def get_nft_info_from_coin_spend(nft_coin: Coin, parent_cs: dict, address: bytes):
     puzzle = Program.fromhex(parent_cs['puzzle_reveal'])
@@ -294,12 +291,11 @@ def get_nft_info_from_coin_spend(nft_coin: Coin, parent_cs: dict, address: bytes
         logger.debug('uncurry nft puzzle: %r', e)
         return
     solution = Program.fromhex(parent_cs['solution'])
-    
+
     # DID ID determines which NFT wallet should process the NFT
     new_did_id = None
     old_did_id = None
     # P2 puzzle hash determines if we should ignore the NFT
-    old_p2_puzhash = uncurried_nft.p2_puzzle.get_tree_hash()
     metadata, new_p2_puzhash = get_metadata_and_phs(
         uncurried_nft,
         solution,
@@ -315,7 +311,9 @@ def get_nft_info_from_coin_spend(nft_coin: Coin, parent_cs: dict, address: bytes
     if new_p2_puzhash != address:
         return
     parent_coin = Coin.from_json_dict(parent_cs['coin'])
-    lineage_proof = LineageProof(parent_coin.parent_coin_info, uncurried_nft.nft_state_layer.get_tree_hash(), parent_coin.amount)
+    lineage_proof = LineageProof(
+        parent_coin.parent_coin_info, uncurried_nft.nft_state_layer.get_tree_hash(), parent_coin.amount
+    )
     return (uncurried_nft, new_did_id, new_p2_puzhash, lineage_proof)
 
 
@@ -341,7 +339,7 @@ def get_metadata_json(metadata: Program) -> dict:
                 info['series_total'] = v.as_int()
             elif key == 'sn':
                 info['series_number'] = v.as_int()
-        except:
+        except Exception:
             pass
 
     return info

@@ -1,10 +1,10 @@
-from typing import Dict, Any, Tuple, Optional
-from dataclasses import dataclass, asdict
 import io
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
 from clvm import SExp
 from clvm import run_program as default_run_program
 from clvm.casts import int_from_bytes, int_to_bytes
-from clvm.EvalError import EvalError
 from clvm.operators import OPERATOR_LOOKUP
 from clvm.serialize import sexp_from_stream, sexp_to_stream
 from clvm_tools.curry import uncurry
@@ -62,7 +62,7 @@ class Program(SExp):
 
     def stream(self, f):
         sexp_to_stream(self, f)
-    
+
     @classmethod
     def from_bytes(cls, blob: bytes) -> "Program":
         f = io.BytesIO(blob)
@@ -81,7 +81,7 @@ class Program(SExp):
 
     def __str__(self) -> str:
         return bytes(self).hex()
-    
+
     def curry(self, *args) -> "Program":
         fixed_args: Any = 1
         for arg in reversed(args):
@@ -99,7 +99,7 @@ class Program(SExp):
 
     def __deepcopy__(self, memo):
         return type(self).from_bytes(bytes(self))
-    
+
     def get_tree_hash(self, *args: bytes) -> bytes:
         return sha256_treehash(self, set(args))
 

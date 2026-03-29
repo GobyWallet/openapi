@@ -1,14 +1,12 @@
-import json
-import asyncio
-from aiocache import caches
 from typing import Dict
-from .types import Program, Coin, LineageProof
+
 from .puzzles import (
-    SINGLETON_TOP_LAYER_MOD, SINGLETON_TOP_LAYER_MOD_HASH,
+    DID_INNERPUZ_MOD,
     SINGLETON_LAUNCHER_MOD_HASH,
-    DID_INNERPUZ_MOD
+    SINGLETON_TOP_LAYER_MOD,
+    SINGLETON_TOP_LAYER_MOD_HASH,
 )
-from .utils import to_hex
+from .types import Coin, LineageProof, Program
 
 
 def match_did_puzzle(puzzle: Program):
@@ -23,8 +21,10 @@ def match_did_puzzle(puzzle: Program):
     return False, iter(())
 
 
-def get_did_inner_puzzle_hash(address: bytes, recovery_list_hash: bytes, num_verification: int, singleton_struct, metadata):
-    return DID_INNERPUZ_MOD.curry(address,  recovery_list_hash, num_verification, singleton_struct, metadata).get_tree_hash(address)
+def get_did_inner_puzzle_hash(address: bytes, recovery_list_hash: bytes, num_verification: int, singleton_struct, metadata):  # noqa: E501
+    return DID_INNERPUZ_MOD.curry(
+        address, recovery_list_hash, num_verification, singleton_struct, metadata
+    ).get_tree_hash(address)
 
 
 def to_full_pzh(inner_puzzle_hash: bytes, launcher_id: bytes):
@@ -58,7 +58,7 @@ def get_did_info_from_coin_spend(coin: Coin, parent_cs: dict, address: bytes):
             return
         curried_args = curried_args_pz.as_iter()
     except Exception:
-        return 
+        return
 
     solution = Program.fromhex(parent_cs['solution'])
 
@@ -69,24 +69,29 @@ def get_did_info_from_coin_spend(coin: Coin, parent_cs: dict, address: bytes):
 
     launcher_id = singleton_struct.rest().first().as_atom()
 
-    full_puzzle_hash = to_full_pzh(get_did_inner_puzzle_hash(address, recovery_list_hash, num_verification, singleton_struct, metadata), bytes(launcher_id))
- 
+    full_puzzle_hash = to_full_pzh(
+        get_did_inner_puzzle_hash(address, recovery_list_hash, num_verification, singleton_struct, metadata),
+        bytes(launcher_id),
+    )
 
     if coin.puzzle_hash != full_puzzle_hash:
         recovery_list_hash = Program.to([]).get_tree_hash()
         num_verification = 0
-        full_empty_puzzle_hash = to_full_pzh(get_did_inner_puzzle_hash(address, recovery_list_hash, num_verification, singleton_struct, metadata), launcher_id)
+        full_empty_puzzle_hash = to_full_pzh(
+            get_did_inner_puzzle_hash(address, recovery_list_hash, num_verification, singleton_struct, metadata),
+            launcher_id,
+        )
         if coin.puzzle_hash != full_empty_puzzle_hash:
             # the recovery list was reset by the previous owner
             return None
-    
+
     inner_solution = solution.rest().rest().first()
     recovery_list = []
     if recovery_list_hash != Program.to([]).get_tree_hash():
         try:
             for did in inner_solution.rest().rest().rest().rest().rest().as_python():
                 recovery_list.append(did[0])
-        except:
+        except Exception:
             pass
 
     return {
@@ -97,5 +102,7 @@ def get_did_info_from_coin_spend(coin: Coin, parent_cs: dict, address: bytes):
         'recovery_list': recovery_list,
         'num_verification': num_verification.as_int(),
         'metadata': metadata,
-        'lineage_proof': LineageProof(parent_coin.parent_coin_info, singleton_inner_puzzle.get_tree_hash(), parent_coin.amount)
+        'lineage_proof': LineageProof(
+            parent_coin.parent_coin_info, singleton_inner_puzzle.get_tree_hash(), parent_coin.amount
+        )
     }
